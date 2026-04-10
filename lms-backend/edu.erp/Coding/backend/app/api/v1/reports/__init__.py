@@ -1,0 +1,1 @@
+from .consolidated_student_marks_routes import router

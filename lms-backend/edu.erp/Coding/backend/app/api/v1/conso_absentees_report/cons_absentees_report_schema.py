@@ -1,0 +1,72 @@
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import date
+
+
+# -------- Dropdown Requests --------
+class DepartmentRequest(BaseModel):
+    pass  # No filters for departments initially
+
+class ProgramRequest(BaseModel):
+    department_id: int
+
+class CurriculumRequest(BaseModel):
+    program_id: int
+
+class TermRequest(BaseModel):
+    curriculum_id: int
+
+class SectionRequest(BaseModel):
+    semester_id: int
+
+
+# -------- Dropdown Response --------
+class DropdownResponse(BaseModel):
+    id: int
+    name: str
+
+
+# -------- Date Info --------
+class DateInfoResponse(BaseModel):
+    latest_attendance_date: Optional[date]
+    scheduled_dates: List[date]
+
+
+# -------- Main Report Request --------
+class ReportRequest(BaseModel):
+    start_date: date
+    end_date: date
+
+    department_ids: Optional[List[int]] = None
+    program_ids: Optional[List[int]] = None
+    curriculum_ids: Optional[List[int]] = None
+    semester_ids: Optional[List[int]] = None   # ✅ ADD THIS
+    section_ids: Optional[List[int]] = None
+
+
+# -------- Main Report Response --------
+class ReportRow(BaseModel):
+    department: str
+    term: str
+    course: str
+    course_id: int
+    section: str
+    section_id: int
+    absent_count: int
+
+
+# -------- Drilldown Request --------
+class DrilldownRequest(BaseModel):
+    course_id: int
+    section_id: int
+    start_date: date
+    end_date: date
+
+
+# -------- Drilldown Response --------
+class DrilldownRow(BaseModel):
+    date: date
+    student_name: str
+    usn: str
+    parent_contact: Optional[str] = None
+    student_contact: Optional[str] = None
