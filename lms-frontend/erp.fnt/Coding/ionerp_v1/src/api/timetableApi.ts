@@ -27,12 +27,7 @@ export interface TimetableOptionItem {
   raw: any;
 }
 
-const SECTION_ID_KEYS = [
-  "section_id",
-  "batch_section_id",
-  "id",
-  "value",
-];
+const SECTION_ID_KEYS = ["section_id", "batch_section_id", "id", "value"];
 
 const SECTION_LABEL_KEYS = [
   "section",
@@ -99,6 +94,69 @@ class TimetableApi {
       .filter(Boolean) as TimetableOptionItem[];
   }
 
+  private normalizeDateString(value?: string): string | undefined {
+    if (!value || typeof value !== "string") {
+      return undefined;
+    }
+
+    const normalized = value.trim();
+    if (!normalized) {
+      return undefined;
+    }
+
+    const parts = normalized.split("-");
+    if (parts.length !== 3) {
+      return undefined;
+    }
+
+    const [first, second, third] = parts;
+    const isIsoFormat = first.length === 4 && /^\d{4}$/.test(first);
+    const year = isIsoFormat ? first : third;
+    const month = isIsoFormat ? second : second;
+    const day = isIsoFormat ? third : first;
+
+    if (
+      !/^\d{4}$/.test(year) ||
+      !/^\d{1,2}$/.test(month) ||
+      !/^\d{1,2}$/.test(day)
+    ) {
+      return undefined;
+    }
+
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  private normalizeScheduledClassesParams(params?: {
+    curriculumId?: number;
+    termId?: number;
+    sectionId?: string;
+    academic_batch_id?: number;
+    crclm_term_id?: number;
+    section?: string;
+    startDate?: string;
+    endDate?: string;
+    start_date?: string;
+    end_date?: string;
+  }) {
+    const academic_batch_id = params?.academic_batch_id ?? params?.curriculumId;
+    const crclm_term_id = params?.crclm_term_id ?? params?.termId;
+    const section = params?.section ?? params?.sectionId;
+    const startDate = this.normalizeDateString(
+      params?.startDate ?? params?.start_date,
+    );
+    const endDate = this.normalizeDateString(
+      params?.endDate ?? params?.end_date,
+    );
+
+    return {
+      ...(academic_batch_id !== undefined ? { academic_batch_id } : {}),
+      ...(crclm_term_id !== undefined ? { crclm_term_id } : {}),
+      ...(section !== undefined && section !== "" ? { section } : {}),
+      ...(startDate ? { startDate } : {}),
+      ...(endDate ? { endDate } : {}),
+    };
+  }
+
   private normalizeSectionOption(item: any): TimetableOptionItem | null {
     if (typeof item === "string") {
       const sectionLabel = item.trim();
@@ -111,18 +169,19 @@ class TimetableApi {
         : null;
     }
 
-    const sectionLabel = SECTION_LABEL_KEYS
-      .map((key) => item?.[key])
-      .find((candidate) => typeof candidate === "string" && candidate.trim());
+    const sectionLabel = SECTION_LABEL_KEYS.map((key) => item?.[key]).find(
+      (candidate) => typeof candidate === "string" && candidate.trim(),
+    );
 
-    const sectionId = SECTION_ID_KEYS
-      .map((key) => item?.[key])
-      .find(
-        (candidate) =>
-          candidate !== undefined && candidate !== null && candidate !== "",
-      );
+    const sectionId = SECTION_ID_KEYS.map((key) => item?.[key]).find(
+      (candidate) =>
+        candidate !== undefined && candidate !== null && candidate !== "",
+    );
 
-    if (!sectionLabel && (sectionId === undefined || sectionId === null || sectionId === "")) {
+    if (
+      !sectionLabel &&
+      (sectionId === undefined || sectionId === null || sectionId === "")
+    ) {
       return null;
     }
 
@@ -237,16 +296,24 @@ class TimetableApi {
       let mergedOptions = primaryOptions;
 
       if (!hasNumericSectionId) {
-        const fallbackResponse = await axiosInstance.get("/api/v1/dropdown/sections", {
-          params: {
-            academic_batch_id: curriculumId,
-            semester_id: termId,
+        const fallbackResponse = await axiosInstance.get(
+          "/api/v1/dropdown/sections",
+          {
+            params: {
+              academic_batch_id: curriculumId,
+              semester_id: termId,
+            },
           },
-        });
+        );
         const fallbackSections = this.unwrapData(fallbackResponse.data);
-        console.log("[Timetable] raw dropdown/sections fallback response", fallbackSections);
+        console.log(
+          "[Timetable] raw dropdown/sections fallback response",
+          fallbackSections,
+        );
 
-        const fallbackOptions = (Array.isArray(fallbackSections) ? fallbackSections : [])
+        const fallbackOptions = (
+          Array.isArray(fallbackSections) ? fallbackSections : []
+        )
           .map((item) => this.normalizeSectionOption(item))
           .filter(Boolean) as TimetableOptionItem[];
 
@@ -267,13 +334,23 @@ class TimetableApi {
 
           const existing = mergedMap.get(labelKey);
           const optionSectionId = Number(
-            option.raw?.section_id ?? option.raw?.batch_section_id ?? option.raw?.id ?? option.value,
+            option.raw?.section_id ??
+              option.raw?.batch_section_id ??
+              option.raw?.id ??
+              option.value,
           );
           const existingSectionId = Number(
-            existing?.raw?.section_id ?? existing?.raw?.batch_section_id ?? existing?.raw?.id ?? existing?.value,
+            existing?.raw?.section_id ??
+              existing?.raw?.batch_section_id ??
+              existing?.raw?.id ??
+              existing?.value,
           );
 
-          if (!existing || (!Number.isFinite(existingSectionId) && Number.isFinite(optionSectionId))) {
+          if (
+            !existing ||
+            (!Number.isFinite(existingSectionId) &&
+              Number.isFinite(optionSectionId))
+          ) {
             mergedMap.set(labelKey, option);
           }
         });
@@ -520,15 +597,30 @@ class TimetableApi {
     curriculumId?: number;
     termId?: number;
     sectionId?: string;
+    academic_batch_id?: number;
+    crclm_term_id?: number;
+    section?: string;
     startDate?: string;
     endDate?: string;
+    start_date?: string;
+    end_date?: string;
   }): Promise<TimetableResponse> {
     try {
-      const response = await axiosInstance.get(
-        "/api/v1/timetable/scheduled-classes",
-        { params },
+      const requestParams = this.normalizeScheduledClassesParams(params);
+      console.log(
+        "[TimetableApi] getScheduledClasses request params",
+        requestParams,
       );
 
+      const response = await axiosInstance.get(
+        "/api/v1/timetable/scheduled-classes",
+        { params: requestParams },
+      );
+
+      console.log(
+        "[TimetableApi] getScheduledClasses response",
+        response?.data,
+      );
       return {
         success: true,
         data: this.unwrapData(response.data),
@@ -640,6 +732,9 @@ class TimetableApi {
     curriculumId?: number;
     termId?: number;
     sectionId?: string;
+    academic_batch_id?: number;
+    crclm_term_id?: number;
+    section?: string;
     startDate?: string;
     endDate?: string;
   }): Promise<TimetableResponse> {
@@ -647,19 +742,40 @@ class TimetableApi {
       const exportUrl = "/api/v1/timetable/export-pdf";
       console.log("[Timetable] export timetable final URL", exportUrl);
       console.log("[Timetable] export timetable params", params);
-      const response = await axiosInstance.get(exportUrl, {
+      const response = await axiosInstance.get<Blob>(exportUrl, {
         params,
         responseType: "blob",
       });
 
-      // Create download link
-      const blob = new Blob([response.data as BlobPart], {
-        type: "application/pdf",
-      });
+      const blob = response.data;
+      const contentType = response.headers["content-type"] || "application/pdf";
+      const contentDisposition =
+        response.headers["content-disposition"] ||
+        response.headers["Content-Disposition"];
+      let fileName = `timetable_${new Date().getTime()}.pdf`;
+
+      if (contentDisposition) {
+        const match = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(
+          contentDisposition,
+        );
+        if (match && match[1]) {
+          fileName = match[1].replace(/['"]/g, "");
+        }
+      } else if (params?.section && params?.startDate && params?.endDate) {
+        const trimmedSection = String(params.section)
+          .trim()
+          .replace(/\s+/g, "_");
+        fileName = `timetable_${trimmedSection}_${params.startDate}_${params.endDate}.pdf`;
+      }
+
+      console.log("[Timetable] export response content-type", contentType);
+      console.log("[Timetable] export response size", blob.size);
+      console.log("[Timetable] export download filename", fileName);
+
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `timetable_${new Date().getTime()}.pdf`;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

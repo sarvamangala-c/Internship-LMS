@@ -4214,22 +4214,29 @@ class LMSLessonSchedule(Base):
     __tablename__ = 'lms_lesson_schedule'
 
     lls_id = Column(Integer, primary_key=True, autoincrement=True)
-    
-    # Fields from Version B (Planning)
+    lesson_schedule_id = Column(Integer, nullable=True)
+    tt_day_map_id = Column(Integer, nullable=True)
+    time_table_id = Column(Integer, nullable=True)
+    tt_detail_id = Column(Integer, nullable=True)
+    portion_ref = Column(String(500), nullable=True)
+    portion_per_hour = Column(Text, nullable=True)
+
     academic_batch_id = Column(Integer, nullable=True)
     semester_id = Column(Integer, nullable=True)
     crs_id = Column(Integer, nullable=True)
+    topic_id = Column(Integer, nullable=True)
     section_id = Column(Integer, nullable=True)
     plan_date = Column(Date, nullable=True)
-    start_time = Column(String(45), nullable=True)
-    end_time = Column(String(45), nullable=True)
+    actual_start_date = Column(Date, nullable=True)
+    completion_date = Column(Date, nullable=True)
+    video_link = Column(String(5000), nullable=True)
+    start_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
     status = Column(Integer, default=0)
 
-    # Fields from Version A (Actual Execution)
-    conduction_date = Column(Date, nullable=True)
-    actual_delivery_date = Column(Date, nullable=True)
+    # NOTE: Current live DB schema for lms_lesson_schedule does not include conduction_date
+    # or actual_delivery_date, so those mapped columns are intentionally omitted here.
 
-    # Combined Audit Fields
     created_by = Column(Integer, nullable=True)
     modified_by = Column(Integer, nullable=True)
     created_date = Column(DateTime, nullable=True)

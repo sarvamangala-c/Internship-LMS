@@ -63,6 +63,12 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
     );
   };
 
+  useEffect(() => {
+    if (hasChildren && shouldHighlight(item)) {
+      setIsOpen(true);
+    }
+  }, [hasChildren, item, location.pathname]);
+
   return (
     <div className='w-full'>
       {item.href && !hasChildren ? (

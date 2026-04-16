@@ -2907,6 +2907,8 @@ def get_scheduled_classes(
     for row in schedules:
         course = course_map.get(row.crs_id)
         section = section_map.get(row.section_id)
+        conduction_date = getattr(row, "conduction_date", None)
+        actual_delivery_date = getattr(row, "actual_delivery_date", None)
         data.append({
             "id": row.lls_id,
             "academic_batch_id": row.academic_batch_id,
@@ -2916,8 +2918,8 @@ def get_scheduled_classes(
             "plan_date": row.plan_date.isoformat() if row.plan_date else None,
             "start_time": row.start_time,
             "end_time": row.end_time,
-            "conduction_date": row.conduction_date.isoformat() if row.conduction_date else None,
-            "actual_delivery_date": row.actual_delivery_date.isoformat() if row.actual_delivery_date else None,
+            "conduction_date": conduction_date.isoformat() if conduction_date else None,
+            "actual_delivery_date": actual_delivery_date.isoformat() if actual_delivery_date else None,
             "status": row.status,
             "crs_code": course.crs_code if course else None,
             "crs_title": course.crs_title if course else None,

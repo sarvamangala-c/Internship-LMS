@@ -141,6 +141,22 @@ export const ApiEndpoint = {
     summary: "/api/v1/access-control/attendance/summary",
   },
 
+  student: {
+    notifications: {
+      unread: "/api/v1/student/notifications/unread",
+      read: "/api/v1/student/notifications/read",
+      counts: "/api/v1/student/notifications/counts",
+      markRead: (notificationId: number | string) =>
+        `/api/v1/student/notifications/${notificationId}/mark-read`,
+    },
+    attendance: {
+      curriculums: "/api/v1/student/attendance/curriculums",
+      terms: "/api/v1/student/attendance/terms",
+      summary: "/api/v1/student/attendance/summary",
+      daywise: "/api/v1/student/attendance/daywise",
+    },
+  },
+
   consolidatedStudentMarksReport: {
     departments: "/api/v1/reports/marks/departments",
     curriculums: "/api/v1/reports/marks/curriculums",

@@ -110,6 +110,8 @@ import StudentAssignmentReport from "../pages/ems/studentAssignmentReport/Studen
 import ConsolidatedAbsenteesReport from "../pages/ems/consolidatedAbsenteesReport/ConsolidatedAbsenteesReport";
 import StudentAttendanceReport from "../pages/ems/studentAttendanceReport/StudentAttendanceReport";
 import ConsolidatedStudentMarksReport from "../pages/ems/consolidatedStudentMarksReport/ConsolidatedStudentMarksReport";
+import StudentNotificationPage from "../pages/student/notification/StudentNotificationPage";
+import MyAttendancePage from "../pages/student/attendance/MyAttendancePage";
 export const EMSROUTE = [
   {
     name: "Home",
@@ -311,6 +313,26 @@ export const EMSROUTE = [
         href: "consolidated-student-marks-report",
         roles: [],
         element: ConsolidatedStudentMarksReport,
+      },
+    ],
+  },
+  {
+    name: "Student",
+    href: "",
+    element: Outlet,
+    roles: [],
+    subItems: [
+      {
+        name: "Notification",
+        href: "student/notification",
+        roles: [],
+        element: StudentNotificationPage,
+      },
+      {
+        name: "My Attendance",
+        href: "student/my-attendance",
+        roles: [],
+        element: MyAttendancePage,
       },
     ],
   },

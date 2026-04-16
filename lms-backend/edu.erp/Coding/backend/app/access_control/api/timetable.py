@@ -120,7 +120,11 @@ def _fetch_timetable_export_rows(
             ls.start_time,
             ls.end_time,
             COALESCE(c.crs_code, '') AS crs_code,
-            NULLIF(COALESCE(c.crs_title, ''), '') AS subject_name,
+            COALESCE(
+                NULLIF(COALESCE(c.crs_title, ''), ''),
+                COALESCE(c.crs_code, ''),
+                ''
+            ) AS subject_name,
             COALESCE(sec.section, '') AS section,
             COALESCE(ab.academic_batch_desc, ab.academic_batch_code, CAST(ls.academic_batch_id AS CHAR)) AS batch_name,
             COALESCE(ls.semester_id, 0) AS semester,
@@ -268,8 +272,8 @@ def _build_export_pdf(rows, section: Optional[str], start_date: Optional[date], 
                 row.plan_date.isoformat(),
                 f"{_format_time_value(row.start_time)} - {_format_time_value(row.end_time)}",
                 row.crs_code or "",
-                row.subject_name or "",
-                row.faculty_name or "",
+                row.subject_name or row.crs_code or "-",
+                row.faculty_name or "-",
             ]
         )
 

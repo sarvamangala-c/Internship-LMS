@@ -72,72 +72,67 @@ export const scheduleClassApi = {
       if (Array.isArray(data)) {
         const responses = [];
         for (const row of data) {
-          console.log(
-            "[scheduleClassApi] POST /api/v1/comman_function/schedule-class",
-            {
-              method: "POST",
-              url: "/api/v1/comman_function/schedule-class",
-              payload: row,
-            },
-          );
+          console.log("[scheduleClassApi] outgoing save payload", {
+            method: "POST",
+            url: "/api/v1/comman_function/schedule-class",
+            payload: row,
+          });
           const response = await axiosInstance.post(
             "/api/v1/comman_function/schedule-class",
             row,
+            { skipGlobalErrorToast: true },
           );
           responses.push(response.data);
         }
 
-        toast.success("Class scheduled successfully!");
         return { success: true, data: responses };
       }
 
-      console.log(
-        "[scheduleClassApi] POST /api/v1/comman_function/schedule-class",
-        {
-          method: "POST",
-          url: "/api/v1/comman_function/schedule-class",
-          payload: data,
-        },
-      );
+      console.log("[scheduleClassApi] outgoing save payload", {
+        method: "POST",
+        url: "/api/v1/comman_function/schedule-class",
+        payload: data,
+      });
       const response = await axiosInstance.post(
         "/api/v1/comman_function/schedule-class",
         data,
+        { skipGlobalErrorToast: true },
       );
-      toast.success("Class scheduled successfully!");
       return { success: true, data: response.data };
     } catch (error: any) {
-      const existingData = localStorage.getItem(STORAGE_KEY);
-      const scheduledClasses = existingData
-        ? JSON.parse(existingData)
-        : [...mockScheduledClasses];
+      console.log("[scheduleClassApi] saveSchedule error", {
+        status: error.response?.status,
+        errorBody: error.response?.data,
+        errorMessage: error.message,
+      });
 
-      const newKey = getComparisonKey(data);
-      const isDuplicate = scheduledClasses.some(
-        (cls: any) => getComparisonKey(cls) === newKey,
-      );
-
-      if (isDuplicate) {
-        toast.info("Class is already scheduled for this time and location.");
-        return { success: true, data: data, isDuplicate: true };
+      if (error.response) {
+        const status = error.response.status;
+        const backendMessage =
+          error.response.data?.message ||
+          error.response.data?.detail ||
+          `Request failed with status ${status}`;
+        return {
+          success: false,
+          status,
+          message: backendMessage,
+          errorResponse: error.response.data,
+        };
       }
 
-      const newClass = {
-        ...data,
-        id: String(data.id || Date.now()),
-        date: data.date || data.classDate,
-        time:
-          data.time ||
-          (data.startTime && data.endTime
-            ? `${data.startTime} - ${data.endTime}`
-            : null),
-        createdAt: new Date().toISOString(),
+      if (error.request) {
+        return {
+          success: false,
+          networkError: true,
+          message:
+            "Network error: Server is unreachable. Check if backend is running.",
+        };
+      }
+
+      return {
+        success: false,
+        message: error.message || "Failed to schedule class.",
       };
-
-      const updatedList = deduplicateData([...scheduledClasses, newClass]);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
-      toast.success("Saved to local storage (Offline)");
-
-      return { success: true, data: newClass, allData: updatedList };
     }
   },
 

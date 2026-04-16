@@ -1,21 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import ModalContainer from '../Modal/ModalContainer';
-import UIButton from '../FormBuilder/fields/Button';
-import { attendanceApi, AttendanceRecord, AttendanceSummary } from '../../api/attendanceApi';
-import { toast } from 'react-toastify';
-import { 
-  Users, 
-  Calendar, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import React, { useState, useEffect } from "react";
+import ModalContainer from "../Modal/ModalContainer";
+import UIButton from "../FormBuilder/fields/Button";
+import {
+  attendanceApi,
+  AttendanceRecord,
+  AttendanceSummary,
+} from "../../api/attendanceApi";
+import { toast } from "react-toastify";
+import {
+  Users,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  Clock,
   AlertCircle,
   Download,
   RefreshCw,
-  Search
-} from 'lucide-react';
+  Search,
+} from "lucide-react";
 
-const ATTENDANCE_MANAGER_STORAGE_KEY = 'attendance_manager_data';
+const ATTENDANCE_MANAGER_STORAGE_KEY = "attendance_manager_data";
 
 interface Student {
   id: string;
@@ -30,6 +34,9 @@ interface AttendanceManagerProps {
   courseId: string;
   courseName: string;
   students: Student[];
+  academicBatchId?: string;
+  termId?: string;
+  sectionId?: string;
 }
 
 const AttendanceManager: React.FC<AttendanceManagerProps> = ({
@@ -37,20 +44,29 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   onClose,
   courseId,
   courseName,
-  students
+  students,
+  academicBatchId,
+  termId,
+  sectionId,
 }) => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [attendanceRecords, setAttendanceRecords] = useState<Map<string, AttendanceRecord>>(new Map());
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+  const [attendanceRecords, setAttendanceRecords] = useState<
+    Map<string, AttendanceRecord>
+  >(new Map());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'mark' | 'view' | 'report'>('mark');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"mark" | "view" | "report">(
+    "mark",
+  );
   const [summary, setSummary] = useState<AttendanceSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Load existing attendance for the selected date
   useEffect(() => {
-    if (isOpen && selectedDate && activeTab === 'view') {
+    if (isOpen && selectedDate && activeTab === "view") {
       loadAttendance();
     }
   }, [isOpen, selectedDate, activeTab]);
@@ -59,32 +75,51 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     try {
       setLoading(true);
       setError(null);
-      
+
       // First try to load from localStorage for immediate display
       loadAttendanceFromLocalStorage();
-      
+
       // Then try to load from API (which also has localStorage fallback)
-      const response = await attendanceApi.getAttendanceByCourseDate(courseId, selectedDate);
-      
+      const response = await attendanceApi.getAttendanceByCourseDate(
+        courseId,
+        selectedDate,
+        {
+          academicBatchId: academicBatchId
+            ? Number(academicBatchId)
+            : undefined,
+          termId: termId ? Number(termId) : undefined,
+          sectionId,
+        },
+      );
+
       if (response.success) {
         const recordsMap = new Map<string, AttendanceRecord>();
         response.data.forEach((record: AttendanceRecord) => {
           recordsMap.set(record.studentId, record);
         });
         setAttendanceRecords(recordsMap);
-        
-        // Load summary
-        const summaryResponse = await attendanceApi.getAttendanceSummary(
-          courseId, 
-          selectedDate, 
-          selectedDate
-        );
-        if (summaryResponse.success) {
-          setSummary(summaryResponse.data as AttendanceSummary);
+
+        if (academicBatchId && termId && sectionId) {
+          // Load summary
+          const summaryPayload = {
+            academic_batch_id: Number(academicBatchId),
+            semester_id: Number(termId),
+            course_id: Number(courseId),
+            section_id: sectionId,
+            from_date: selectedDate,
+            to_date: selectedDate,
+          };
+          console.log("Attendance API payload", summaryPayload);
+          const summaryResponse =
+            await attendanceApi.getAttendanceSummaryByDate(summaryPayload);
+          if (summaryResponse.success) {
+            setSummary(summaryResponse.data as AttendanceSummary);
+          }
         }
       }
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to load attendance data';
+      const errorMsg =
+        err.response?.data?.message || "Failed to load attendance data";
       setError(errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -92,23 +127,32 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     }
   };
 
-  const handleMarkAttendance = async (studentId: string, status: AttendanceRecord['status']) => {
+  const handleMarkAttendance = async (
+    studentId: string,
+    status: AttendanceRecord["status"],
+  ) => {
     try {
       const existingRecord = attendanceRecords.get(studentId);
-      
-      const attendanceData: Omit<AttendanceRecord, 'id' | 'markedAt'> = {
+
+      const attendanceData: Omit<AttendanceRecord, "id" | "markedAt"> = {
         studentId,
         courseId,
         date: selectedDate,
         status,
-        checkInTime: status === 'present' ? new Date().toTimeString().slice(0, 5) : undefined,
-        markedBy: 'current_user', // This should come from auth context
-        notes: existingRecord?.notes
+        checkInTime:
+          status === "present"
+            ? new Date().toTimeString().slice(0, 5)
+            : undefined,
+        markedBy: "current_user", // This should come from auth context
+        notes: existingRecord?.notes,
       };
 
       let response;
       if (existingRecord) {
-        response = await attendanceApi.updateAttendance(existingRecord.id, attendanceData);
+        response = await attendanceApi.updateAttendance(
+          existingRecord.id,
+          attendanceData,
+        );
       } else {
         response = await attendanceApi.markAttendance([attendanceData]);
       }
@@ -116,32 +160,46 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       if (response.success) {
         const updatedRecord = response.data;
         if (Array.isArray(updatedRecord)) {
-          setAttendanceRecords(prev => new Map(prev.set(studentId, updatedRecord[0] as AttendanceRecord)));
+          setAttendanceRecords(
+            (prev) =>
+              new Map(
+                prev.set(studentId, updatedRecord[0] as AttendanceRecord),
+              ),
+          );
         } else {
-          setAttendanceRecords(prev => new Map(prev.set(studentId, updatedRecord as AttendanceRecord)));
+          setAttendanceRecords(
+            (prev) =>
+              new Map(prev.set(studentId, updatedRecord as AttendanceRecord)),
+          );
         }
-        
+
         // Save to localStorage for persistence
         saveAttendanceToLocalStorage();
-        
+
         toast.success(`Attendance marked as ${status}`);
         loadAttendance(); // Refresh summary
       }
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to mark attendance';
+      const errorMsg =
+        err.response?.data?.message || "Failed to mark attendance";
       toast.error(errorMsg);
-      console.error('Attendance marking error:', err);
+      console.error("Attendance marking error:", err);
     }
   };
 
   const saveAttendanceToLocalStorage = () => {
     try {
-      const attendanceArray = Array.from(attendanceRecords.entries()).map(([studentId, record]) => ({
-        ...record
-      }));
-      localStorage.setItem(ATTENDANCE_MANAGER_STORAGE_KEY, JSON.stringify(attendanceArray));
+      const attendanceArray = Array.from(attendanceRecords.entries()).map(
+        ([studentId, record]) => ({
+          ...record,
+        }),
+      );
+      localStorage.setItem(
+        ATTENDANCE_MANAGER_STORAGE_KEY,
+        JSON.stringify(attendanceArray),
+      );
     } catch (error) {
-      console.error('Error saving attendance to localStorage:', error);
+      console.error("Error saving attendance to localStorage:", error);
     }
   };
 
@@ -157,33 +215,37 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
         setAttendanceRecords(recordsMap);
       }
     } catch (error) {
-      console.error('Error loading attendance from localStorage:', error);
+      console.error("Error loading attendance from localStorage:", error);
     }
   };
 
-  const handleBulkMark = async (status: AttendanceRecord['status']) => {
+  const handleBulkMark = async (status: AttendanceRecord["status"]) => {
     try {
       setSaving(true);
-      
-      const attendanceData = students.map(student => ({
+
+      const attendanceData = students.map((student) => ({
         studentId: student.id,
         courseId,
         date: selectedDate,
         status,
-        checkInTime: status === 'present' ? new Date().toTimeString().slice(0, 5) : undefined,
-        markedBy: 'current_user'
+        checkInTime:
+          status === "present"
+            ? new Date().toTimeString().slice(0, 5)
+            : undefined,
+        markedBy: "current_user",
       }));
 
       const response = await attendanceApi.markAttendance(attendanceData);
-      
+
       if (response.success) {
         toast.success(`All students marked as ${status}`);
         loadAttendance();
       }
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to mark bulk attendance';
+      const errorMsg =
+        err.response?.data?.message || "Failed to mark bulk attendance";
       toast.error(errorMsg);
-      console.error('Bulk attendance error:', err);
+      console.error("Bulk attendance error:", err);
     } finally {
       setSaving(false);
     }
@@ -192,96 +254,130 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   const handleExportReport = async () => {
     try {
       setLoading(true);
-      
+
       const response = await attendanceApi.getAttendanceReport(
         courseId,
         selectedDate,
-        selectedDate
+        selectedDate,
       );
-      
+
       if (response.success) {
         // Create CSV content
         const csvContent = generateCSV(response.data);
         downloadCSV(csvContent, `attendance-${courseId}-${selectedDate}.csv`);
-        toast.success('Report exported successfully');
+        toast.success("Report exported successfully");
       }
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to export report';
+      const errorMsg = err.response?.data?.message || "Failed to export report";
       toast.error(errorMsg);
-      console.error('Export error:', err);
+      console.error("Export error:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const generateCSV = (data: any) => {
-    const headers = ['Student Name', 'Roll Number', 'Status', 'Check In Time', 'Date'];
-    const rows = students.map(student => {
+    const headers = [
+      "Student Name",
+      "Roll Number",
+      "Status",
+      "Check In Time",
+      "Date",
+    ];
+    const rows = students.map((student) => {
       const record = attendanceRecords.get(student.id);
       return [
         student.name,
         student.rollNumber,
-        record?.status || 'Not marked',
-        record?.checkInTime || 'N/A',
-        selectedDate
-      ].join(',');
+        record?.status || "Not marked",
+        record?.checkInTime || "N/A",
+        selectedDate,
+      ].join(",");
     });
-    
-    return [headers.join(','), ...rows].join('\n');
+
+    return [headers.join(","), ...rows].join("\n");
   };
 
   const downloadCSV = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: 'text/csv' });
+    const blob = new Blob([content], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = filename;
     a.click();
     window.URL.revokeObjectURL(url);
   };
 
-  const getStatusColor = (status: AttendanceRecord['status']) => {
+  const getStatusColor = (status: AttendanceRecord["status"]) => {
     switch (status) {
-      case 'present': return 'bg-green-100 text-green-800 border-green-200';
-      case 'absent': return 'bg-red-100 text-red-800 border-red-200';
-      case 'late': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'excused': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case "present":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "absent":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "late":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "excused":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
 
-  const getStatusIcon = (status: AttendanceRecord['status']) => {
+  const getStatusIcon = (status: AttendanceRecord["status"]) => {
     switch (status) {
-      case 'present': return <CheckCircle className="w-4 h-4" />;
-      case 'absent': return <XCircle className="w-4 h-4" />;
-      case 'late': return <Clock className="w-4 h-4" />;
-      case 'excused': return <AlertCircle className="w-4 h-4" />;
-      default: return null;
+      case "present":
+        return <CheckCircle className="w-4 h-4" />;
+      case "absent":
+        return <XCircle className="w-4 h-4" />;
+      case "late":
+        return <Clock className="w-4 h-4" />;
+      case "excused":
+        return <AlertCircle className="w-4 h-4" />;
+      default:
+        return null;
     }
   };
 
-  const filteredStudents = students.filter(student =>
-    student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.rollNumber.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStudents = students.filter(
+    (student) =>
+      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const attendanceStats = {
     total: students.length,
-    present: Array.from(attendanceRecords.values()).filter(r => r.status === 'present').length,
-    absent: Array.from(attendanceRecords.values()).filter(r => r.status === 'absent').length,
-    late: Array.from(attendanceRecords.values()).filter(r => r.status === 'late').length,
-    excused: Array.from(attendanceRecords.values()).filter(r => r.status === 'excused').length,
-    notMarked: students.length - attendanceRecords.size
+    present: Array.from(attendanceRecords.values()).filter(
+      (r) => r.status === "present",
+    ).length,
+    absent: Array.from(attendanceRecords.values()).filter(
+      (r) => r.status === "absent",
+    ).length,
+    late: Array.from(attendanceRecords.values()).filter(
+      (r) => r.status === "late",
+    ).length,
+    excused: Array.from(attendanceRecords.values()).filter(
+      (r) => r.status === "excused",
+    ).length,
+    notMarked: students.length - attendanceRecords.size,
   };
 
   return (
-    <ModalContainer isOpen={isOpen} onClose={onClose} title="Attendance Management" size="full">
+    <ModalContainer
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Attendance Management"
+      size="full"
+    >
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-semibold text-gray-800">{courseName}</h2>
-            <p className="text-gray-600">Manage attendance for {students.length} students</p>
+            <h2 className="text-xl font-semibold text-gray-800">
+              {courseName}
+            </h2>
+            <p className="text-gray-600">
+              Manage attendance for {students.length} students
+            </p>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -298,7 +394,9 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
               disabled={loading}
               className="bg-gray-500 hover:bg-gray-600 text-white"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+              />
             </UIButton>
           </div>
         </div>
@@ -306,14 +404,14 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
         {/* Tabs */}
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8">
-            {(['mark', 'view', 'report'] as const).map(tab => (
+            {(["mark", "view", "report"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === tab
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -341,57 +439,69 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-blue-800">Total</p>
-                <p className="text-2xl font-bold text-blue-900">{attendanceStats.total}</p>
+                <p className="text-2xl font-bold text-blue-900">
+                  {attendanceStats.total}
+                </p>
               </div>
               <Users className="w-8 h-8 text-blue-500" />
             </div>
           </div>
-          
+
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-green-800">Present</p>
-                <p className="text-2xl font-bold text-green-900">{attendanceStats.present}</p>
+                <p className="text-2xl font-bold text-green-900">
+                  {attendanceStats.present}
+                </p>
               </div>
               <CheckCircle className="w-8 h-8 text-green-500" />
             </div>
           </div>
-          
+
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-red-800">Absent</p>
-                <p className="text-2xl font-bold text-red-900">{attendanceStats.absent}</p>
+                <p className="text-2xl font-bold text-red-900">
+                  {attendanceStats.absent}
+                </p>
               </div>
               <XCircle className="w-8 h-8 text-red-500" />
             </div>
           </div>
-          
+
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-yellow-800">Late</p>
-                <p className="text-2xl font-bold text-yellow-900">{attendanceStats.late}</p>
+                <p className="text-2xl font-bold text-yellow-900">
+                  {attendanceStats.late}
+                </p>
               </div>
               <Clock className="w-8 h-8 text-yellow-500" />
             </div>
           </div>
-          
+
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-purple-800">Excused</p>
-                <p className="text-2xl font-bold text-purple-900">{attendanceStats.excused}</p>
+                <p className="text-2xl font-bold text-purple-900">
+                  {attendanceStats.excused}
+                </p>
               </div>
               <AlertCircle className="w-8 h-8 text-purple-500" />
             </div>
           </div>
-          
+
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-800">Not Marked</p>
-                <p className="text-2xl font-bold text-gray-900">{attendanceStats.notMarked}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {attendanceStats.notMarked}
+                </p>
               </div>
               <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
                 <span className="text-xs font-bold text-gray-600">?</span>
@@ -412,19 +522,19 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
               className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          
+
           <div className="flex gap-2">
-            {activeTab === 'mark' && (
+            {activeTab === "mark" && (
               <>
                 <UIButton
-                  onClick={() => handleBulkMark('present')}
+                  onClick={() => handleBulkMark("present")}
                   disabled={saving}
                   className="bg-green-600 hover:bg-green-700 text-white"
                 >
                   Mark All Present
                 </UIButton>
                 <UIButton
-                  onClick={() => handleBulkMark('absent')}
+                  onClick={() => handleBulkMark("absent")}
                   disabled={saving}
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
@@ -432,7 +542,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                 </UIButton>
               </>
             )}
-            
+
             <UIButton
               onClick={handleExportReport}
               disabled={loading}
@@ -447,60 +557,81 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
         {/* Students List */}
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           <div className="max-h-96 overflow-y-auto">
-            {filteredStudents.map(student => {
+            {filteredStudents.map((student) => {
               const record = attendanceRecords.get(student.id);
               const status = record?.status;
-              
+
               return (
-                <div key={student.id} className="border-b border-gray-200 p-4 hover:bg-gray-50">
+                <div
+                  key={student.id}
+                  className="border-b border-gray-200 p-4 hover:bg-gray-50"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
                           <span className="text-sm font-medium text-gray-600">
-                            {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                            {student.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()}
                           </span>
                         </div>
                         <div>
-                          <h3 className="font-medium text-gray-900">{student.name}</h3>
-                          <p className="text-sm text-gray-500">{student.rollNumber} • {student.email}</p>
+                          <h3 className="font-medium text-gray-900">
+                            {student.name}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            {student.rollNumber} • {student.email}
+                          </p>
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       {status && (
-                        <div className={`flex items-center gap-1 px-3 py-1 rounded-full border text-sm font-medium ${getStatusColor(status)}`}>
+                        <div
+                          className={`flex items-center gap-1 px-3 py-1 rounded-full border text-sm font-medium ${getStatusColor(status)}`}
+                        >
                           {getStatusIcon(status)}
                           {status.charAt(0).toUpperCase() + status.slice(1)}
                         </div>
                       )}
-                      
-                      {activeTab === 'mark' && (
+
+                      {activeTab === "mark" && (
                         <div className="flex gap-1">
                           <UIButton
-                            onClick={() => handleMarkAttendance(student.id, 'present')}
+                            onClick={() =>
+                              handleMarkAttendance(student.id, "present")
+                            }
                             disabled={saving}
                             className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 text-sm"
                           >
                             P
                           </UIButton>
                           <UIButton
-                            onClick={() => handleMarkAttendance(student.id, 'absent')}
+                            onClick={() =>
+                              handleMarkAttendance(student.id, "absent")
+                            }
                             disabled={saving}
                             className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 text-sm"
                           >
                             A
                           </UIButton>
                           <UIButton
-                            onClick={() => handleMarkAttendance(student.id, 'late')}
+                            onClick={() =>
+                              handleMarkAttendance(student.id, "late")
+                            }
                             disabled={saving}
                             className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 text-sm"
                           >
                             L
                           </UIButton>
                           <UIButton
-                            onClick={() => handleMarkAttendance(student.id, 'excused')}
+                            onClick={() =>
+                              handleMarkAttendance(student.id, "excused")
+                            }
                             disabled={saving}
                             className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 text-sm"
                           >
@@ -510,11 +641,13 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                       )}
                     </div>
                   </div>
-                  
+
                   {record?.checkInTime && (
                     <div className="mt-2 text-sm text-gray-500">
                       Check-in: {record.checkInTime}
-                      {record.notes && <span className="ml-2">• {record.notes}</span>}
+                      {record.notes && (
+                        <span className="ml-2">• {record.notes}</span>
+                      )}
                     </div>
                   )}
                 </div>
