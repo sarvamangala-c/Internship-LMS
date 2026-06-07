@@ -1,4 +1,4 @@
-# LMS — All in One (Features, 🛠️ Technology Stack, 🔄 User Flow, Prerequisites, Installation, Running, UI Features)
+# LMS 
 
 ## Features
 ### EMS: Receive Announcement
