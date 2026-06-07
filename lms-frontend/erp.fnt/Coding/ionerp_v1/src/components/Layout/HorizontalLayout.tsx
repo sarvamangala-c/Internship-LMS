@@ -90,10 +90,11 @@ const MenuItem: React.FC<{
     }, [activeMenuId, currentMenuId, isExpanded, parentId]);
 
     const linkClassName = (isActive: boolean, hasChildren: boolean) => `
-    ${isMobile ? "block w-full" : "inline-flex items-center"} 
-    px-2 py-1 text-sm rounded-md transition-colors relative dark:text-gray-200
-    ${isActive ? "panel-bg text-white" : `hover:panel-bg-1 ${hasChildren ? "text-color-1" : "text-color-1"} `}
-    ${depth > 0 ? "pl-" + depth * 2.5 : ""}
+    ${isMobile ? "block w-full" : "inline-flex items-center h-full"} 
+    px-5 py-2 text-[13px] font-black uppercase tracking-wider transition-all duration-300 relative
+    ${isActive 
+      ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/30" 
+      : `text-slate-500 border-b-2 border-transparent hover:text-indigo-600 hover:bg-slate-100/50`}
   `;
 
     const handleClick = (e: React.MouseEvent) => {
@@ -284,32 +285,38 @@ const HorizontalLayout: React.FC = () => {
   }, [showProfileMenu]);
 
   const Header = (
-    <header className='panel-bg dark:bg-gray-900 shadow-sm'>
-      <div className='mx-auto'>
+    <header className='shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] relative z-50'>
+      <div className='mx-auto bg-white/80 backdrop-blur-xl text-slate-800 border-b border-slate-100'>
         {applicationRole !== "main" && (
-          <div className='flex items-center px-4 justify-between text-center w-full '>
-            <div className='flex items-center'>
-              {
-                <h1 className='text-lg font-semibold text-white '>
-                  Ion<span className='text-red-500'>{applicationRole && getRoleName()[applicationRole].toUpperCase()}</span>
+          <div className='flex items-center px-8 justify-between h-16'>
+            <div className='flex items-center space-x-4'>
+              <div className="bg-indigo-50 p-2.5 rounded-2xl border border-indigo-100/50">
+                <Building className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h1 className='text-xl font-black tracking-tight text-slate-900'>
+                  Ion<span className='text-indigo-600'>{applicationRole && getRoleName()[applicationRole].toUpperCase()}</span>
                 </h1>
-              }
+              </div>
             </div>
-            <h1 className='lg:text-xl font-semibold py-3 text-white'>{currentOrg?.label}</h1>
-            <div></div>
+            <div className="flex flex-col items-center group cursor-default">
+              <span className="text-[9px] uppercase tracking-[0.3em] text-slate-400 font-black mb-0.5 group-hover:text-indigo-400 transition-colors">Portal Access</span>
+              <h1 className='text-xl font-extrabold tracking-tight text-slate-800'>{currentOrg?.label}</h1>
+            </div>
+            <div className="w-32"></div> {/* Spacer */}
           </div>
         )}
-        <div className='flex items-center px-4 justify-between panel-bg-1 dark:bg-gray-900 h-10 '>
+        <div className='flex items-center px-4 justify-between h-12 bg-slate-50/40'>
           {/* Logo */}
-          <div>
+          <div className="flex items-center ml-4">
             {applicationRole === "main" && (
-              <h1 className='text-lg font-semibold '>
-                Ion<span className='text-red-500'>Education</span>
+              <h1 className='text-lg font-black tracking-tighter text-slate-900'>
+                ION<span className='text-indigo-600'>CORE</span>
               </h1>
             )}
           </div>
           {/* Desktop Navigation */}
-          <nav className='hidden md:flex space-x-0.5'>
+          <nav className='hidden md:flex items-center h-full space-x-1'>
             {routesForRole &&
               Array.isArray(routesForRole) &&
               routesForRole
@@ -445,7 +452,19 @@ const HorizontalLayout: React.FC = () => {
 
   return (
     <BaseLayout header={Header} footer={<Footer />}>
-      <Outlet />
+      <main className="min-h-screen relative p-8 overflow-hidden" style={{
+        backgroundColor: '#f1f5f9',
+        backgroundImage: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.12) 0px, transparent 50%)'
+      }}>
+        {/* Visible Background Glows */}
+        <div className="absolute top-[-5%] left-[-5%] w-[45%] h-[45%] rounded-full bg-indigo-500/15 blur-[100px] pointer-events-none animate-pulse" />
+        <div className="absolute bottom-[-5%] right-[-5%] w-[45%] h-[45%] rounded-full bg-emerald-500/15 blur-[100px] pointer-events-none animate-pulse" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-[40%] right-[10%] w-[30%] h-[30%] rounded-full bg-purple-500/10 blur-[100px] pointer-events-none" />
+        
+        <div className="relative z-10">
+          <Outlet />
+        </div>
+      </main>
     </BaseLayout>
   );
 };

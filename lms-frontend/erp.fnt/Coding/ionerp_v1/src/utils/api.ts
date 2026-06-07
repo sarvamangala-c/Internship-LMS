@@ -16,13 +16,12 @@ const AUTH_COOKIE_ORG_KEY = "auth_org_state";
 // });
 
 const axiosInstance = axios.create({
-  baseURL: "http://127.0.0.1:8000", // ✅ VERY IMPORTANT
+  baseURL: (process.env.REACT_APP_API_URL ? `${process.env.REACT_APP_API_URL}/` : "http://127.0.0.1:8000/"),
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-console.log("API URL:", process.env.REACT_APP_API_URL);
 
 axiosInstance.interceptors.request.use(
   (config) => {

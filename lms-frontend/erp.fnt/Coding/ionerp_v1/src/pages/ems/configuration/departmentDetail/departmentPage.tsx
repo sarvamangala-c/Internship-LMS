@@ -11,15 +11,21 @@ import { FaCheckCircle } from "react-icons/fa";
 import { AiOutlineCalendar } from "react-icons/ai";
 import { getDepartmentList } from "./responceinterface";
 import { updateCookieCommonApiData } from "../../../../utils/commonHelper";
-import ScheduleClassForm from "../../../ScheduleClassManagement/ScheduleClassForm";
+import ScheduleClassForm from "../../ScheduleClassManagement/ScheduleClassForm";
 import { scheduleClassApi } from "../../../../api/scheduleClassApi";
 import { toast } from "react-toastify";
 const DepartmentPage = () => {
-  const [deleteId, setDeleteId] = React.useState<getDepartmentList | null>(null);
+  const [deleteId, setDeleteId] = React.useState<getDepartmentList | null>(
+    null,
+  );
   const [isModalOpen, setIsModalOpen] = React.useState<boolean>(false);
   const [confirmMessage, setConfirmMessage] = React.useState<string>("");
-  const [editingData, setEditingData] = React.useState<Record<string, any> | null>(null);
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = React.useState<boolean>(false);
+  const [editingData, setEditingData] = React.useState<Record<
+    string,
+    any
+  > | null>(null);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] =
+    React.useState<boolean>(false);
 
   // Mock data for initial display - replace with API call when backend is ready
   const [mockData] = React.useState([
@@ -37,23 +43,24 @@ const DepartmentPage = () => {
     },
   ]);
 
-  const { responseData, addItem, editStateItem, addStateItem, refetch } = useAxios<
-    {
-      show_delete: number;
-      equal_or_not_equal: number;
-      no_batch: number;
-    },
-    any
-  >(ApiEndpoint.department.department_list, {
-    method: "post",
-    loader: false,
-    payload: {
-      show_delete: 1,
-      equal_or_not_equal: 0,
-      no_batch: 1,
-    },
-    shouldFetch: false,
-  });
+  const { responseData, addItem, editStateItem, addStateItem, refetch } =
+    useAxios<
+      {
+        show_delete: number;
+        equal_or_not_equal: number;
+        no_batch: number;
+      },
+      any
+    >(ApiEndpoint.department.department_list, {
+      method: "post",
+      loader: false,
+      payload: {
+        show_delete: 1,
+        equal_or_not_equal: 0,
+        no_batch: 1,
+      },
+      shouldFetch: false,
+    });
 
   const closeModalHandler = () => {
     setIsModalOpen(false);
@@ -65,7 +72,10 @@ const DepartmentPage = () => {
   };
 
   const handleEdit = React.useCallback((data: Record<string, any>) => {
-    setEditingData({ ...data, no_batch_dept: data.no_batch_dept === 1 ? true : false });
+    setEditingData({
+      ...data,
+      no_batch_dept: data.no_batch_dept === 1 ? true : false,
+    });
     setIsModalOpen(true);
   }, []);
 
@@ -88,12 +98,15 @@ const DepartmentPage = () => {
     }
   };
 
-  const handleDelete = useCallback((item: getDepartmentList, message: string) => {
-    // Implement delete functionality
-    // console.log('delete', item)
-    setConfirmMessage(message);
-    setDeleteId(item);
-  }, []);
+  const handleDelete = useCallback(
+    (item: getDepartmentList, message: string) => {
+      // Implement delete functionality
+      // console.log('delete', item)
+      setConfirmMessage(message);
+      setDeleteId(item);
+    },
+    [],
+  );
 
   const confirmDelete = useCallback(async () => {
     if (deleteId !== null) {
@@ -107,7 +120,10 @@ const DepartmentPage = () => {
       status: deleteId?.status === 1 ? 0 : 1,
     };
     // console.log("deletePayload", deletePayload);
-    const response = await addItem(deletePayload, ApiEndpoint.master_soft_delete);
+    const response = await addItem(
+      deletePayload,
+      ApiEndpoint.master_soft_delete,
+    );
     if (!response) {
       return;
     }
@@ -140,28 +156,38 @@ const DepartmentPage = () => {
         cellRenderer: (params: any) => {
           // const rowNode = params.node as RowNode;
           return (
-            <div className='flex space-x-3 justify-left items-center h-full'>
+            <div className="flex space-x-3 justify-left items-center h-full">
               <GoPencil
                 size={20}
                 onClick={() => handleEdit(params.data)}
-                className='cursor-pointer text-yellow-600'
+                className="cursor-pointer text-yellow-600"
               />
               <AiOutlineCalendar
                 size={20}
                 onClick={() => handleOpenScheduleModal()}
-                className='cursor-pointer text-blue-600'
+                className="cursor-pointer text-blue-600"
                 title="Schedule Class"
               />
               {params.data.status === 1 ? (
                 <FaCheckCircle
-                  className='cursor-pointer text-green-600'
-                  onClick={() => handleDelete(params.data, "Are you sure you want to Deactivate?")}
+                  className="cursor-pointer text-green-600"
+                  onClick={() =>
+                    handleDelete(
+                      params.data,
+                      "Are you sure you want to Deactivate?",
+                    )
+                  }
                   size={15}
                 />
               ) : (
                 <MdOutlineDoNotDisturbAlt
-                  className='cursor-pointer text-red-600'
-                  onClick={() => handleDelete(params.data, "Are you sure you want to Activate?")}
+                  className="cursor-pointer text-red-600"
+                  onClick={() =>
+                    handleDelete(
+                      params.data,
+                      "Are you sure you want to Activate?",
+                    )
+                  }
                   size={15}
                 />
               )}
@@ -213,10 +239,50 @@ const DepartmentPage = () => {
   );
 
   return (
-    <>
-      <div className=''>
-        <h3 className='text-lg leading-6 font-medium pb-5'>Department Details</h3>
+    <div className="space-y-6">
+      {/* Premium Header & Breadcrumbs */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+        <div>
+          <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+            <span>Home</span>
+            <span className="text-slate-300">/</span>
+            <span>Configurations</span>
+            <span className="text-slate-300">/</span>
+            <span className="text-indigo-600">Departments</span>
+          </div>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Departmental Infrastructure</h1>
+          <p className="text-slate-500 text-sm font-medium">Manage and monitor academic & administrative units.</p>
+        </div>
+        <button 
+          onClick={OpenModalHandler}
+          className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 transition-all active:scale-95"
+        >
+          <span className="mr-2 text-lg">+</span> Add Department
+        </button>
+      </div>
 
+      {/* Unit Intelligence Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          { label: 'Total Units', value: (responseData?.length || mockData.length), icon: '🏢', color: 'indigo', status: 'Central' },
+          { label: 'Active Status', value: (responseData?.filter((d: any) => d.status === 1).length || mockData.filter(d => d.status === 1).length), icon: '✅', color: 'emerald', status: 'Operational' },
+          { label: 'Maintenance', value: (responseData?.filter((d: any) => d.status === 0).length || mockData.filter(d => d.status === 0).length), icon: '⚠️', color: 'amber', status: 'Deactivated' }
+        ].map((stat, i) => (
+          <div key={i} className="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-500">
+            <div className={`absolute top-0 left-0 w-1.5 h-full bg-${stat.color}-500 opacity-40`} />
+            <div className={`absolute -right-4 -bottom-4 w-24 h-24 bg-${stat.color}-500/5 rounded-full blur-2xl group-hover:bg-${stat.color}-500/10 transition-colors duration-500`} />
+            
+            <div className="flex items-center justify-between mb-4 relative z-10">
+              <span className={`text-2xl p-2 bg-${stat.color}-50 rounded-xl shadow-inner`}>{stat.icon}</span>
+              <span className={`text-[10px] font-black uppercase tracking-wider text-${stat.color}-600 bg-${stat.color}-50 px-2.5 py-1 rounded-lg`}>{stat.status}</span>
+            </div>
+            <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-[0.25em] mb-1 relative z-10">{stat.label}</h3>
+            <p className="text-3xl font-black text-slate-900 tracking-tighter relative z-10">{stat.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white/90 backdrop-blur-md rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
         {isModalOpen && (
           <ModalWithForm
             title={"Department"}
@@ -238,29 +304,31 @@ const DepartmentPage = () => {
           />
         )}
 
-        <DataTable
-          columnDefs={columnDefs}
-          rowData={
-            Array.isArray(responseData) && responseData.length > 0
-              ? responseData
-              : mockData
-          }
-          showAddButton={true}
-          showExportButton={false}
-          addButtonHandler={OpenModalHandler}
-          headerFilter={true}
-          pageSize={20}
-        />
+        <div className="p-6">
+          <DataTable
+            columnDefs={columnDefs}
+            rowData={
+              Array.isArray(responseData) && responseData.length > 0
+                ? responseData
+                : mockData
+            }
+            showAddButton={false}
+            showExportButton={true} // Using integrated table export
+            addButtonHandler={OpenModalHandler}
+            headerFilter={true}
+            pageSize={20}
+          />
+        </div>
 
         <ConfirmDialog
           isOpen={deleteId !== null}
           onClose={() => setDeleteId(null)}
           onConfirm={confirmDelete}
-          title='Confirm'
+          title="Confirm"
           message={confirmMessage}
         />
       </div>
-    </>
+    </div>
   );
 };
 export default DepartmentPage;

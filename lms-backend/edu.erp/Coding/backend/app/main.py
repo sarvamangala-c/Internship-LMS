@@ -12,10 +12,10 @@ app = FastAPI()
 # Configuration for CORS - allows React frontend to communicate with backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],           # Allow all origins (dev mode)
-    allow_credentials=False,        # Must be False when allow_origins=["*"]
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],  # Allow specific origins and all for dev
+    allow_credentials=True,         # Allow credentials
+    allow_methods=["*"],            # Allow all HTTP methods
+    allow_headers=["*"],            # Allow all headers
 )
 
 # Include the main API router with v1 prefix

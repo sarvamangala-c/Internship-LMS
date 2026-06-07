@@ -20,6 +20,7 @@ import { useLayout } from "../../contexts/LayoutContext";
 import { useModalWithForm } from "../../contexts/ModelFormContext";
 import { LocalStorageHelper } from "../../utils/localStorageHelper";
 import { getRoleName } from "../../utils/data";
+import "./VerticalLayout.css";
 
 // Define menu items with icons and routes
 
@@ -46,12 +47,7 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
   };
 
   const menuItemClasses = (isActive: boolean) => `
-  flex items-center justify-between font-normal px-3 py-1 my-1 rounded-md transition-colors w-full
-  ${level > 0 ? "ml-2" : ""}
-  ${isActive
-      ? "button-bg dark:panel-bg text-white"
-      : " text-color-1 hover:bg-[#75b9c2]  hover:text-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200"
-    }
+  menu-item ${isActive ? "active" : ""} ${level > 0 ? "nested" : ""}
 `;
 
   const shouldHighlight = (item: any) => {
@@ -73,28 +69,28 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
     <div className='w-full'>
       {item.href && !hasChildren ? (
         <Link to={item.href} className={menuItemClasses(shouldHighlight(item))}>
-          <span className='flex items-center text-sm'>
-            {item.icon && <span className='mr-1.5'>{item.icon}</span>}
+          <span className='menu-item-content'>
+            {item.icon && <span className='menu-item-icon'>{item.icon}</span>}
             {item.name}
           </span>
         </Link>
       ) : (
         <button onClick={toggleSubmenu} className={menuItemClasses(shouldHighlight(item))}>
-          <span className='flex items-center text-sm'>
-            {item.icon && <span className='mr-1.5'>{item.icon}</span>}
+          <span className='menu-item-content'>
+            {item.icon && <span className='menu-item-icon'>{item.icon}</span>}
             {item.name}
           </span>
           {hasChildren && (
             <ChevronRight
-              className={`transform transition-transform ${isOpen ? "rotate-90" : ""}`}
+              className={`menu-item-chevron ${isOpen ? "open" : ""}`}
               size={14}
             />
           )}
         </button>
       )}
       {hasChildren && isOpen && (
-        <div className='ml-2 relative'>
-          <div className='menu-root-line' />
+        <div className='submenu-container'>
+          <div className='submenu-line' />
           <div className=''>
             {item?.subItems?.map(
               (child, index) =>
@@ -108,60 +104,6 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
     </div>
   );
 };
-
-const scrollbarStyles = `
-  [data-custom-scrollbar]::-webkit-scrollbar {
-    width: 4px;
-  }
-  
-  [data-custom-scrollbar]::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  
-  [data-custom-scrollbar]::-webkit-scrollbar-thumb {
-    background-color: rgb(209 213 219);
-    border-radius: 20px;
-  }
-
-  .dark [data-custom-scrollbar]::-webkit-scrollbar-thumb {
-    background-color: rgb(75 85 99);
-  }
-
-  [data-custom-scrollbar]::-webkit-scrollbar-thumb:hover {
-    background-color: rgb(156 163 175);
-  }
-
-  .dark [data-custom-scrollbar]::-webkit-scrollbar-thumb:hover {
-    background-color: rgb(107 114 128);
-  }
-
-  @keyframes pulseRoot {
-    0% {
-      opacity: 0.4;
-    }
-    50% {
-      opacity: 0.7;
-    }
-    100% {
-      opacity: 0.4;
-    }
-  }
-
-  .menu-root-line {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: #75b9c2;
-    // background: rgb(84 137 255);
-    animation: pulseRoot 2s ease-in-out infinite;
-  }
-
-  .dark .menu-root-line {
-    background: rgb(75 85 99);
-  }
-`;
 
 const VerticalLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -192,30 +134,24 @@ const VerticalLayout: React.FC = () => {
   return (
     <div className='flex h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300 fixed w-full'>
       {/* Mobile Overlay */}
-      {isSidebarOpen && <div className='fixed inset-0 bg-black/50 z-40 lg:hidden' onClick={toggleSidebar} />}
+      {isSidebarOpen && <div className='mobile-overlay' onClick={toggleSidebar} />}
 
       {/* Sidebar */}
       <div
-        className={`
-          fixed top-0 left-0 h-full w-64 panel-bg-1 dark:bg-gray-900 
-          shadow-sm transform transition-transform duration-300 z-50 border-r border-none
-          ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:relative lg:translate-x-0 flex flex-col
-        `}
+        className={`sidebar-container ${isSidebarOpen ? "open" : ""}`}
       >
         {/* Header */}
-        <div className='flex-shrink-0 flex items-center  w-full justify-between p-4 border-b border-none shadow-sm dark:border-gray-700'>
-          <h1 className='text-xl font-bold text-color-1'>
-            Ion<span className='text-red-500'>{applicationRole && getRoleName()[applicationRole].toUpperCase()}</span>
+        <div className='sidebar-header'>
+          <h1 className='sidebar-title'>
+            Ion<span>{applicationRole && getRoleName()[applicationRole].toUpperCase()}</span>
           </h1>
-          <button onClick={toggleSidebar} className='lg:hidden text-white dark:text-gray-300'>
+          <button onClick={toggleSidebar} className='sidebar-close-btn'>
             <X size={24} />
           </button>
         </div>
 
         {/* Navigation Menu - Make it scrollable */}
-        <style>{scrollbarStyles}</style>
-        <nav className='flex-1 overflow-y-auto py-2 px-3' data-custom-scrollbar>
+        <nav className='sidebar-nav'>
           {routesForRole &&
             Array.isArray(routesForRole) &&
             routesForRole
@@ -224,19 +160,19 @@ const VerticalLayout: React.FC = () => {
         </nav>
 
         {/* User Profile and Logout - Fixed at bottom */}
-        <div className='flex-shrink-0 p-4 border-t border-none shadow-sm dark:border-gray-700'>
-          <div className='flex items-center justify-between space-x-4'>
-            <div className='flex items-center space-x-3'>
-              <div className='flex-shrink-0 w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full'>
-                <User className='w-5 h-5 text-color-1 dark:text-gray-400' />
+        <div className='sidebar-footer'>
+          <div className='user-profile'>
+            <div className='user-info'>
+              <div className='user-avatar'>
+                <User className='w-5 h-5' />
               </div>
-              <div className='flex flex-col min-w-0'>
-                <p className='text-sm font-medium text-color-1 dark:text-white truncate'>
+              <div className='user-details'>
+                <p className='user-name'>
                   {authState?.username || "Guest"}
                 </p>
                 <Link
                   to='/change_password'
-                  className='text-xs text-color-1 dark:text-blue-400 hover:text-gray-400 dark:hover:text-blue-300 transition-colors mt-0.5'
+                  className='change-password-link'
                 >
                   Change Password
                 </Link>
@@ -244,7 +180,7 @@ const VerticalLayout: React.FC = () => {
             </div>
             <button
               onClick={logout}
-              className='flex-shrink-0 p-2 text-color-1 hover:text-gray-700 panel-bg-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors'
+              className='logout-btn'
               title='Logout'
             >
               <svg

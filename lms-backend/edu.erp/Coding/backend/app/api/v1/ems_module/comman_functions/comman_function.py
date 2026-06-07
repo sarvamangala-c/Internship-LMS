@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Optional
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, or_, asc, distinct, func, text, update
 from sqlalchemy.orm import Session
@@ -2643,8 +2643,18 @@ def list_courses(request: CourseRequest, db: Session = Depends(get_db)):
     - semester_id / semester / crclm_term_id = term selector
     - course_type_id = course type
     """
+    print(f"\n[COURSES API] Received request:")
+    print(f"[COURSES API]   academic_batch_id: {request.academic_batch_id}")
+    print(f"[COURSES API]   semester: {request.semester}")
+    print(f"[COURSES API]   semester_id: {request.semester_id}")
+    print(f"[COURSES API]   crclm_term_id: {request.crclm_term_id}")
+    print(f"[COURSES API]   course_type_id: {request.course_type_id}")
+    
     requested_semester = request.crclm_term_id or request.semester_id or request.semester
+    print(f"[COURSES API] Resolved requested_semester: {requested_semester}")
+    
     semester_context = _resolve_semester_context(db, request.academic_batch_id, requested_semester)
+    print(f"[COURSES API] Semester context: {semester_context}")
 
     query = db.query(IEMSCourses).filter(
         IEMSCourses.academic_batch_id == request.academic_batch_id
@@ -2655,8 +2665,10 @@ def list_courses(request: CourseRequest, db: Session = Depends(get_db)):
 
     if semester_context["resolved_semester_number"] is not None and hasattr(IEMSCourses, "semester"):
         query = query.filter(IEMSCourses.semester == semester_context["resolved_semester_number"])
+        print(f"[COURSES API] Filtering by semester: {semester_context['resolved_semester_number']}")
 
     courses = query.all()
+    print(f"[COURSES API] Found {len(courses)} courses")
 
     return {
         "status": True,
@@ -2683,8 +2695,16 @@ def list_batch_sections(request: BatchSectionRequest, db: Session = Depends(get_
     - semester_id = term selector; crclm_term_id is also accepted internally
     - section_id in downstream save/check calls must be iems_section.id
     """
+    print(f"\n[SECTIONS API] Received request:")
+    print(f"[SECTIONS API]   academic_batch_id: {request.academic_batch_id}")
+    print(f"[SECTIONS API]   semester_id: {request.semester_id}")
+    print(f"[SECTIONS API]   crclm_term_id: {request.crclm_term_id}")
+    
     requested_semester = request.crclm_term_id or request.semester_id
+    print(f"[SECTIONS API] Resolved requested_semester: {requested_semester}")
+    
     semester_context = _resolve_semester_context(db, request.academic_batch_id, requested_semester)
+    print(f"[SECTIONS API] Semester context: {semester_context}")
 
     batch = db.query(IEMSAcademicBatch).filter(
         IEMSAcademicBatch.academic_batch_id == request.academic_batch_id
@@ -2697,6 +2717,8 @@ def list_batch_sections(request: BatchSectionRequest, db: Session = Depends(get_
             IEMSection.semester_id == semester_context["resolved_semester_number"],
         )
     ).all()
+    
+    print(f"[SECTIONS API] Found {len(sections)} sections")
 
     return {
         "status": True,
@@ -3181,27 +3203,107 @@ def get_topics(
     }
 
 
+def _resolved_semester_number_for_students(
+    db: Session, academic_batch_id: Optional[int], semester_id: Optional[int]
+) -> Optional[int]:
+    """Map UI term selector (crclm_term_id or semester number) to a numeric semester for filters."""
+    if semester_id is None or academic_batch_id is None:
+        return None
+    ctx = _resolve_semester_context(db, academic_batch_id, int(semester_id))
+    raw = ctx.get("resolved_semester_number")
+    if raw is None:
+        return None
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, str):
+        s = raw.strip()
+        if s.isdigit():
+            return int(s)
+        for token in s.replace("-", " ").split():
+            if token.isdigit():
+                return int(token)
+    return None
+
+
 def get_students(
     academic_batch_id: Optional[int] = None,
     semester_id: Optional[int] = None,
     section: Optional[str] = None,
+    crs_code: Optional[str] = Query(None, description="When set, list students from iems_student_courses for this course."),
+    crs_id: Optional[int] = Query(None, description="Alternative to crs_code; resolved against iems_courses in this batch."),
     db: Session = Depends(get_db),
     org_id: Optional[int] = Header(None)
 ):
-    query = db.query(IEMStudents).filter(IEMStudents.status == 1)
+    semester_number = _resolved_semester_number_for_students(db, academic_batch_id, semester_id)
 
-    if org_id is not None:
-        query = query.filter(IEMStudents.org_id == org_id)
-    if academic_batch_id is not None:
-        query = query.filter(IEMStudents.academic_batch_id == academic_batch_id)
-    if semester_id is not None:
-        semester_value = db.query(IEMSemester.semester).filter(IEMSemester.semester_id == semester_id).scalar()
-        if semester_value is not None:
-            query = query.filter(IEMStudents.current_semester == semester_value)
-    if section:
-        query = query.filter(IEMStudents.section == section)
+    resolved_crs = (crs_code or "").strip() or None
+    if not resolved_crs and crs_id is not None and academic_batch_id is not None:
+        course_row = (
+            db.query(IEMSCourses)
+            .filter(
+                IEMSCourses.crs_id == crs_id,
+                IEMSCourses.academic_batch_id == academic_batch_id,
+            )
+            .first()
+        )
+        if course_row and course_row.crs_code:
+            resolved_crs = course_row.crs_code.strip()
 
-    students = query.order_by(IEMStudents.student_id.asc()).all()
+    section_trim = section.strip() if section else None
+
+    if resolved_crs and academic_batch_id is not None:
+        join_on = or_(
+            StudentCourse.regno == IEMStudents.regno,
+            StudentCourse.usno == IEMStudents.usno,
+        )
+        id_query = (
+            db.query(IEMStudents.student_id)
+            .join(StudentCourse, join_on)
+            .filter(
+                IEMStudents.status == 1,
+                StudentCourse.batch_id == academic_batch_id,
+                StudentCourse.crs_code == resolved_crs,
+                StudentCourse.is_withdrawn == 0,
+                StudentCourse.is_drop == 0,
+            )
+        )
+        if org_id is not None:
+            id_query = id_query.filter(IEMStudents.org_id == org_id)
+        if semester_number is not None:
+            id_query = id_query.filter(StudentCourse.semester == semester_number)
+        if section_trim:
+            id_query = id_query.filter(func.trim(StudentCourse.section) == section_trim)
+
+        student_ids = [row[0] for row in id_query.distinct().all()]
+        if student_ids:
+            students = (
+                db.query(IEMStudents)
+                .filter(IEMStudents.student_id.in_(student_ids))
+                .order_by(IEMStudents.student_id.asc())
+                .all()
+            )
+        else:
+            # No course registration rows; still show section roster for attendance UI
+            roster = db.query(IEMStudents).filter(IEMStudents.status == 1)
+            if org_id is not None:
+                roster = roster.filter(IEMStudents.org_id == org_id)
+            roster = roster.filter(IEMStudents.academic_batch_id == academic_batch_id)
+            if section_trim:
+                roster = roster.filter(func.trim(IEMStudents.section) == section_trim)
+            students = roster.order_by(IEMStudents.student_id.asc()).all()
+    else:
+        query = db.query(IEMStudents).filter(IEMStudents.status == 1)
+
+        if org_id is not None:
+            query = query.filter(IEMStudents.org_id == org_id)
+        if academic_batch_id is not None:
+            query = query.filter(IEMStudents.academic_batch_id == academic_batch_id)
+        if semester_number is not None:
+            query = query.filter(IEMStudents.current_semester == semester_number)
+        if section_trim:
+            query = query.filter(func.trim(IEMStudents.section) == section_trim)
+
+        students = query.order_by(IEMStudents.student_id.asc()).all()
     data = []
     for row in students:
         full_name = row.name or " ".join([

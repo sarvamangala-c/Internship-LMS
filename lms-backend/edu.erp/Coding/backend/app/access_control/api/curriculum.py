@@ -61,11 +61,20 @@ def get_curriculums(db: Session = Depends(get_db)):
 # --- 2. List Terms Based on Curriculum API ---
 @router.get("/timetable/curriculums/{crclm_id}/terms", response_model=List[TermOut])
 def get_terms_by_curriculum(crclm_id: int, db: Session = Depends(get_db)):
+    print(f"\n[TERMS API] Received crclm_id: {crclm_id}")
+    print(f"[TERMS API] Type of crclm_id: {type(crclm_id)}")
+    
     terms = db.query(models.IEMSCrclmTerm).filter(
         models.IEMSCrclmTerm.crclm_id == crclm_id
     ).all()
+    
+    print(f"[TERMS API] Found {len(terms)} terms for crclm_id={crclm_id}")
+    for t in terms:
+        print(f"[TERMS API] Term: crclm_term_id={t.crclm_term_id}, term_name={t.term_name}")
+    
     # Return an empty list when no terms found to match the declared List response_model
     if not terms:
+        print(f"[TERMS API] No terms found, returning empty list")
         return []
     return terms
 

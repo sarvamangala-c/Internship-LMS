@@ -7,6 +7,7 @@ from app.access_control.schemas.attendance import (
     AttendanceSavePayload,
     AttendanceSummaryResponse,
     LessonDatesResponse,
+    LmsAttendanceSyncPayload,
 )
 
 from ...db import models
@@ -83,6 +84,7 @@ def fetch_attendance(
 
 @router.post("/attendance/save")
 def save_attendance(payload: AttendanceSavePayload, db: Session = Depends(get_db)):
+    print(f"DEBUG: save_attendance API hit with {len(payload.records)} records")
     """Save attendance data (batch upsert). Provide `meta` with class context and `records` list."""
     # Validate meta required fields
     meta = payload.meta
@@ -99,9 +101,13 @@ def save_attendance(payload: AttendanceSavePayload, db: Session = Depends(get_db
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid result_year format. Use YYYY-MM-DD.")
 
-    attendance_list = [r.model_dump() for r in payload.records]
-    result = timetable_service.save_attendance_batch(db, attendance_list, meta)
-    return {"message": "Attendance saved", "result": result}
+    attendance_list = [r.model_dump() if hasattr(r, "model_dump") else r.dict() for r in payload.records]
+    try:
+        result = timetable_service.save_attendance_batch(db, attendance_list, meta)
+        return {"message": "Attendance saved", "result": result}
+    except Exception as e:
+        print(f"ERROR in save_attendance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get(
@@ -213,6 +219,41 @@ def get_attendance_summary(
         "message": "Success",
         "data": students,
     }
+
+
+@router.post(
+    "/access-control/attendance/sync-lms-map",
+    summary="Create LMS attendance header if missing and insert map rows for all enrolled students",
+)
+def sync_lms_attendance_map(payload: LmsAttendanceSyncPayload, db: Session = Depends(get_db)):
+    """
+    After the UI loads the student list for a class, call this so `lms_map_student_attendance`
+    contains one row per student on `iems_student_courses` for that course/section/date.
+    """
+    recs = None
+    if payload.records:
+        recs = []
+        for r in payload.records:
+            if hasattr(r, "model_dump"):
+                recs.append(r.model_dump(exclude_none=True))
+            else:
+                recs.append(r.dict(exclude_none=True))
+    data = timetable_service.sync_lms_map_student_attendance_for_class(
+        db=db,
+        academic_batch_id=payload.academic_batch_id,
+        semester_id_ui=payload.semester_id,
+        crs_id=payload.crs_id,
+        section_id=payload.section_id,
+        attendance_date=payload.attendance_date,
+        created_by=payload.created_by,
+        a_type_id=payload.a_type_id,
+        tt_detail_id=payload.tt_detail_id,
+        attendance_class_count=payload.attendance_class_count,
+        manage_status=payload.manage_status,
+        attendance_id_override=payload.attendance_id,
+        status_records=recs,
+    )
+    return {"status": True, "message": "Success", "data": data}
 
 
 router.add_api_route("/comman_function/students", get_students, methods=["GET"])

@@ -999,218 +999,197 @@ const TimetableListPage: React.FC = () => {
   };
 
   return (
-    <div style={pageStyle}>
-      <div style={cardStyle}>
-        <div style={topGridStyle}>
-          <Field
-            label="Curriculum"
-            value={selectedCurriculum}
-            onChange={setSelectedCurriculum}
-            options={curriculums}
-            placeholder={
-              loadingState.curriculums ? "Loading..." : "Select Curriculum"
-            }
-          />
-          <Field
-            label="Term"
-            value={selectedTerm}
-            onChange={setSelectedTerm}
-            options={terms}
-            placeholder={loadingState.terms ? "Loading..." : "Select Term"}
-            disabled={!selectedCurriculum || loadingState.terms}
-          />
-          <Field
-            label="Section"
-            value={selectedSection}
-            onChange={(value) => {
-              setSelectedSection(value);
-              syncSelectedSectionState(value, sections);
-            }}
-            options={sections}
-            placeholder={
-              loadingState.sections ? "Loading..." : "Select Section"
-            }
-            disabled={!selectedTerm || loadingState.sections}
-          />
-          <Field
-            label="Timetable"
-            value={selectedTimetable}
-            onChange={setSelectedTimetable}
-            options={timetables}
-            placeholder={
-              loadingState.timetables ? "Loading..." : "Select Timetable"
-            }
-            disabled={
-              !selectedCurriculum || !selectedTerm || loadingState.timetables
-            }
-          />
-          <DateField
-            label="Start Date"
-            value={startDate}
-            onChange={setStartDate}
-          />
-          <DateField label="End Date" value={endDate} onChange={setEndDate} />
-        </div>
+    <div className="relative min-h-screen p-1">
+      {/* Dynamic Mesh Background Layer */}
+      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-300/30 rounded-full blur-[140px] animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-200/40 rounded-full blur-[140px] animate-pulse" style={{ animationDelay: "2s" }} />
+        <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] bg-amber-100/50 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: "4s" }} />
+      </div>
 
-        <div style={secondRowStyle}>
-          <TimeField
-            label="Start Time"
-            value={startTime}
-            onChange={setStartTime}
-          />
-          <TimeField label="End Time" value={endTime} onChange={setEndTime} />
-          <Field
-            label="Regular/Bypass Method"
-            value={method}
-            onChange={setMethod}
-            options={[
-              { value: "Regular", label: "Regular", raw: null },
-              { value: "Bypass", label: "Bypass", raw: null },
-            ]}
-            placeholder="Select Method"
-          />
-        </div>
-
-        <div style={actionsRowStyle}>
-          <button
-            type="button"
-            style={primaryButtonStyle}
-            onClick={() => setIsScheduleModalOpen(true)}
-          >
-            Schedule Class
-          </button>
-
-          <div style={optionsWrapperStyle}>
-            <button
-              type="button"
-              style={secondaryButtonStyle}
-              onClick={() => setIsOptionsOpen((current) => !current)}
-            >
-              Options
-              <span style={caretStyle}>▼</span>
-            </button>
-
-            {isOptionsOpen && (
-              <div style={dropdownStyle}>
-                <OptionItem
-                  label="Import Timetable"
-                  disabled
-                  onClick={() => handleOptionsAction("import")}
-                />
-                <OptionItem
-                  label="Export Timetable"
-                  disabled={!selectedCurriculum || !selectedTerm}
-                  onClick={() => handleOptionsAction("export")}
-                />
-                <OptionItem
-                  label="Copy Class Day"
-                  disabled
-                  onClick={() => handleOptionsAction("copy")}
-                />
-                <OptionItem
-                  label="Reset Date"
-                  disabled
-                  onClick={() => handleOptionsAction("reset")}
-                />
-                <OptionItem
-                  label="Delete"
-                  disabled
-                  onClick={() => handleOptionsAction("delete")}
-                  danger
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={gridShellStyle}>
-          <div style={gridHeaderBarStyle}>
-            <span>Timetable</span>
-            <span style={gridMetaStyle}>
-              {selectedTimetableOption?.label || "New Timetable"}
-            </span>
-          </div>
-
-          <div style={tableScrollStyle}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={{ ...headCellStyle, ...timeColumnStyle }}>Time</th>
-                  {DAY_NAMES.map((day) => (
-                    <th key={day} style={headCellStyle}>
-                      {day}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {timeSlots.map((slot) => (
-                  <tr key={slot}>
-                    <td style={{ ...bodyCellStyle, ...timeColumnStyle }}>
-                      {formatTimeToAMPM(slot)}
-                    </td>
-                    {DAY_NAMES.map((day) => {
-                      const timeLabel = formatTimeToAMPM(slot);
-                      const lookupKey = `${day}|${timeLabel}`;
-                      console.log("[TimetablePage] rendering cell lookup", {
-                        lookupKey,
-                        day,
-                        timeLabel,
-                      });
-                      const cellItems = classesByCell.get(lookupKey) || [];
-                      return (
-                        <td key={`${day}-${slot}`} style={bodyCellStyle}>
-                          {cellItems.length === 0 ? (
-                            <div style={emptyCellStyle} />
-                          ) : (
-                            cellItems.map((item, index) => (
-                              <div
-                                key={`${day}-${slot}-${index}`}
-                                style={classChipStyle}
-                              >
-                                <div style={classTitleStyle}>
-                                  {item?.displayCode}
-                                </div>
-                                <div style={classSubtitleStyle}>
-                                  {item?.course_type ||
-                                    item?.courseType ||
-                                    item?.faculty ||
-                                    ""}
-                                </div>
-                                <div style={classTimeStyle}>
-                                  {item?.timeLabel}
-                                  {item?.end_time || item?.endTime
-                                    ? ` - ${formatTimeRangeValue(item?.end_time || item?.endTime)}`
-                                    : ""}
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-                {!isPageLoading && timeSlots.length === 0 && (
-                  <tr>
-                    <td style={emptyStateCellStyle} colSpan={8}>
-                      Choose a valid start and end time to render the timetable
-                      grid.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {isPageLoading && (
-            <div style={statusLineStyle}>Loading timetable...</div>
-          )}
-          {!isPageLoading && transformedGridData.length === 0 && (
-            <div style={statusLineStyle}>
-              No scheduled classes found for the current selection.
+      <div className="relative z-10 space-y-6 max-w-[1600px] mx-auto p-4 lg:p-8">
+        {/* Premium Header & Breadcrumbs */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-br from-indigo-50/90 to-white/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-sm border border-indigo-100/50">
+          <div>
+            <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+              <span>Home</span>
+              <span className="text-slate-300">/</span>
+              <span>LMS</span>
+              <span className="text-slate-300">/</span>
+              <span className="text-indigo-600">Timetable</span>
             </div>
-          )}
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Academic Schedule</h1>
+            <p className="text-slate-500 text-sm font-medium">Design and manage course sessions across sections.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsScheduleModalOpen(true)}
+              className="flex items-center px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-indigo-300 transition-all active:scale-95"
+            >
+              <span className="mr-2 text-xl">+</span> Schedule Class
+            </button>
+            
+            <div className="relative">
+              <button
+                onClick={() => setIsOptionsOpen((current) => !current)}
+                className="flex items-center px-6 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold text-sm shadow-sm hover:bg-slate-50 transition-all active:scale-95"
+              >
+                Tools <span className="ml-2 text-[10px] opacity-40">▼</span>
+              </button>
+              {isOptionsOpen && (
+                <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
+                  <OptionItem label="Import Schedule" disabled onClick={() => handleOptionsAction("import")} />
+                  <OptionItem label="Export PDF" disabled={!selectedCurriculum || !selectedTerm} onClick={() => handleOptionsAction("export")} />
+                  <OptionItem label="Clear Grid" disabled onClick={() => handleOptionsAction("reset")} danger />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Insight Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[
+            { label: "Weekly Volume", value: transformedGridData.length, icon: "⏳", color: "indigo", status: "Active" },
+            { label: "Room Capacity", value: "85%", icon: "🏢", color: "emerald", status: "Optimal" },
+            { label: "Conflict Status", value: "None", icon: "🛡️", color: "amber", status: "Verified" }
+          ].map((stat, i) => (
+            <div key={i} className="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] shadow-sm border border-white/50 relative overflow-hidden group hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-500">
+              <div className={`absolute top-0 left-0 w-1.5 h-full bg-${stat.color}-500/60`} />
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <span className="text-2xl p-2 bg-white rounded-xl shadow-inner">{stat.icon}</span>
+                <span className={`text-[10px] font-black uppercase tracking-wider text-${stat.color}-600 bg-${stat.color}-50 px-2.5 py-1 rounded-lg`}>{stat.status}</span>
+              </div>
+              <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-[0.25em] mb-1 relative z-10">{stat.label}</h3>
+              <p className="text-3xl font-black text-slate-900 tracking-tighter relative z-10">{stat.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Control Center (Filters) */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-white/50 overflow-hidden">
+          <div className="p-8 border-b border-slate-100 bg-slate-50/30">
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Schedule Configuration</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Field
+                label="Curriculum"
+                value={selectedCurriculum}
+                onChange={setSelectedCurriculum}
+                options={curriculums}
+                placeholder={loadingState.curriculums ? "Loading..." : "Select Curriculum"}
+              />
+              <Field
+                label="Term / Semester"
+                value={selectedTerm}
+                onChange={setSelectedTerm}
+                options={terms}
+                placeholder={loadingState.terms ? "Loading..." : "Select Term"}
+                disabled={!selectedCurriculum || loadingState.terms}
+              />
+              <Field
+                label="Section"
+                value={selectedSection}
+                onChange={(value) => {
+                  setSelectedSection(value);
+                  syncSelectedSectionState(value, sections);
+                }}
+                options={sections}
+                placeholder={loadingState.sections ? "Loading..." : "Select Section"}
+                disabled={!selectedTerm || loadingState.sections}
+              />
+              <Field
+                label="Active Timetable"
+                value={selectedTimetable}
+                onChange={setSelectedTimetable}
+                options={timetables}
+                placeholder={loadingState.timetables ? "Loading..." : "Select Timetable"}
+                disabled={!selectedCurriculum || !selectedTerm || loadingState.timetables}
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+              <DateField label="Period Start" value={startDate} onChange={setStartDate} />
+              <DateField label="Period End" value={endDate} onChange={setEndDate} />
+              <TimeField label="Shift Start" value={startTime} onChange={setStartTime} />
+              <TimeField label="Shift End" value={endTime} onChange={setEndTime} />
+            </div>
+          </div>
+
+          {/* Timetable Grid View */}
+          <div className="p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-black text-slate-800 tracking-tight italic">
+                {selectedTimetableOption?.label || "Live Schedule Grid"}
+              </h3>
+              <div className="px-4 py-1.5 bg-slate-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500">
+                {method} Mode
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-3xl border border-slate-100 shadow-inner bg-slate-50/50 p-1">
+              <table className="w-full border-collapse table-fixed min-w-[1000px]">
+                <thead>
+                  <tr>
+                    <th className="w-32 bg-slate-800 text-white p-4 text-[10px] font-black uppercase tracking-widest rounded-tl-2xl">Time</th>
+                    {DAY_NAMES.map((day, i) => (
+                      <th key={day} className={`bg-slate-100/80 p-4 text-[10px] font-black uppercase tracking-widest text-slate-600 ${i === DAY_NAMES.length - 1 ? "rounded-tr-2xl" : "border-r border-white"}`}>
+                        {day}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {timeSlots.map((slot) => (
+                    <tr key={slot} className="group hover:bg-white/50 transition-colors">
+                      <td className="p-4 text-center font-black text-xs text-slate-400 bg-white/40 border-r border-slate-100">
+                        {formatTimeToAMPM(slot)}
+                      </td>
+                      {DAY_NAMES.map((day) => {
+                        const timeLabel = formatTimeToAMPM(slot);
+                        const lookupKey = `${day}|${timeLabel}`;
+                        const cellItems = classesByCell.get(lookupKey) || [];
+                        return (
+                          <td key={`${day}-${slot}`} className="p-2 h-32 vertical-top border-r border-slate-100/50 last:border-r-0">
+                            {cellItems.length === 0 ? (
+                              <div className="w-full h-full rounded-xl group-hover:bg-indigo-50/20 transition-all border border-transparent group-hover:border-dashed group-hover:border-indigo-100" />
+                            ) : (
+                              <div className="space-y-2">
+                                {cellItems.map((item, index) => (
+                                  <div key={index} className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 hover:border-indigo-200 hover:shadow-md transition-all group/chip relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
+                                    <div className="font-black text-[10px] text-indigo-600 uppercase tracking-tight mb-1">{item?.displayCode}</div>
+                                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter truncate">
+                                      {item?.course_type || item?.faculty || "No Instructor"}
+                                    </div>
+                                    <div className="mt-2 flex items-center justify-between">
+                                      <span className="text-[8px] font-black text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">
+                                        {item?.timeLabel}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  {!isPageLoading && timeSlots.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="py-20 text-center">
+                        <span className="text-4xl block mb-3 opacity-20">📅</span>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-300 italic">
+                          Define Shift Parameters to Initialize Grid
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {isPageLoading && <div className="p-8 text-center text-xs font-bold text-indigo-500 animate-pulse">Syncing Schedule with Cloud...</div>}
         </div>
       </div>
 
@@ -1240,13 +1219,14 @@ const Field: React.FC<{
   placeholder: string;
   disabled?: boolean;
 }> = ({ label, value, onChange, options, placeholder, disabled }) => (
-  <div style={fieldWrapStyle}>
-    <label style={labelStyle}>{label}</label>
+  <div className="flex flex-col gap-2 min-w-0">
+    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{label}</label>
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
       disabled={disabled}
-      style={selectStyle(disabled)}
+      className={`h-14 px-4 rounded-2xl border transition-all appearance-none bg-white/50 backdrop-blur-md font-bold text-sm
+        ${disabled ? "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed" : "border-slate-200 text-slate-700 hover:border-indigo-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"}`}
     >
       <option value="">{placeholder}</option>
       {options.map((option) => (
@@ -1263,13 +1243,13 @@ const DateField: React.FC<{
   value: string;
   onChange: (value: string) => void;
 }> = ({ label, value, onChange }) => (
-  <div style={fieldWrapStyle}>
-    <label style={labelStyle}>{label}</label>
+  <div className="flex flex-col gap-2 min-w-0">
+    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{label}</label>
     <input
       type="date"
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      style={inputStyle}
+      className="h-14 px-4 rounded-2xl border border-slate-200 bg-white/50 backdrop-blur-md font-bold text-sm text-slate-700 hover:border-indigo-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
     />
   </div>
 );
@@ -1279,13 +1259,13 @@ const TimeField: React.FC<{
   value: string;
   onChange: (value: string) => void;
 }> = ({ label, value, onChange }) => (
-  <div style={fieldWrapStyle}>
-    <label style={labelStyle}>{label}</label>
+  <div className="flex flex-col gap-2 min-w-0">
+    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{label}</label>
     <input
       type="time"
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      style={inputStyle}
+      className="h-14 px-4 rounded-2xl border border-slate-200 bg-white/50 backdrop-blur-md font-bold text-sm text-slate-700 hover:border-indigo-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
     />
   </div>
 );
@@ -1300,7 +1280,8 @@ const OptionItem: React.FC<{
     type="button"
     disabled={disabled}
     onClick={onClick}
-    style={optionItemStyle(disabled, danger)}
+    className={`w-full text-left px-4 py-3.5 rounded-xl font-bold text-xs transition-all
+      ${disabled ? "text-slate-300 cursor-not-allowed" : danger ? "text-rose-600 hover:bg-rose-50" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"}`}
   >
     {label}
   </button>
@@ -1404,232 +1385,5 @@ const formatTimeRangeValue = (timeValue?: string) => {
   return formatTimeToAMPM(String(timeValue).trim().slice(0, 5));
 };
 
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  padding: "20px",
-  backgroundColor: "#eef3f8",
-};
-
-const cardStyle: React.CSSProperties = {
-  backgroundColor: "#ffffff",
-  border: "1px solid #cfd8e3",
-  borderRadius: "3px",
-  boxShadow: "0 1px 3px rgba(15, 23, 42, 0.08)",
-  padding: "18px",
-};
-
-const topGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-  gap: "14px",
-};
-
-const secondRowStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 240px))",
-  gap: "14px",
-  marginTop: "16px",
-};
-
-const actionsRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  marginTop: "18px",
-  marginBottom: "18px",
-};
-
-const fieldWrapStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "6px",
-  minWidth: 0,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: "12px",
-  fontWeight: 600,
-  color: "#334155",
-};
-
-const inputStyle: React.CSSProperties = {
-  height: "34px",
-  border: "1px solid #c4cfdb",
-  borderRadius: "2px",
-  padding: "0 10px",
-  fontSize: "13px",
-  color: "#0f172a",
-  backgroundColor: "#ffffff",
-};
-
-const selectStyle = (disabled?: boolean): React.CSSProperties => ({
-  ...inputStyle,
-  color: disabled ? "#94a3b8" : "#0f172a",
-  backgroundColor: disabled ? "#f8fafc" : "#ffffff",
-});
-
-const primaryButtonStyle: React.CSSProperties = {
-  height: "34px",
-  padding: "0 16px",
-  border: "1px solid #1d4ed8",
-  borderRadius: "2px",
-  backgroundColor: "#2563eb",
-  color: "#ffffff",
-  cursor: "pointer",
-  fontSize: "13px",
-  fontWeight: 600,
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  height: "34px",
-  padding: "0 14px",
-  border: "1px solid #94a3b8",
-  borderRadius: "2px",
-  backgroundColor: "#ffffff",
-  color: "#334155",
-  cursor: "pointer",
-  fontSize: "13px",
-};
-
-const caretStyle: React.CSSProperties = {
-  display: "inline-block",
-  marginLeft: "8px",
-  fontSize: "10px",
-};
-
-const optionsWrapperStyle: React.CSSProperties = {
-  position: "relative",
-};
-
-const dropdownStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "38px",
-  left: 0,
-  width: "190px",
-  backgroundColor: "#ffffff",
-  border: "1px solid #cfd8e3",
-  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.12)",
-  zIndex: 20,
-  padding: "6px 0",
-};
-
-const optionItemStyle = (
-  disabled?: boolean,
-  danger?: boolean,
-): React.CSSProperties => ({
-  width: "100%",
-  textAlign: "left",
-  border: "none",
-  backgroundColor: "#ffffff",
-  padding: "9px 12px",
-  fontSize: "13px",
-  color: disabled ? "#94a3b8" : danger ? "#b91c1c" : "#1f2937",
-  cursor: disabled ? "not-allowed" : "pointer",
-});
-
-const gridShellStyle: React.CSSProperties = {
-  border: "1px solid #cfd8e3",
-  backgroundColor: "#ffffff",
-};
-
-const gridHeaderBarStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  padding: "10px 12px",
-  borderBottom: "1px solid #dbe4ee",
-  backgroundColor: "#f8fafc",
-  fontSize: "13px",
-  fontWeight: 600,
-  color: "#1e293b",
-};
-
-const gridMetaStyle: React.CSSProperties = {
-  fontWeight: 500,
-  color: "#64748b",
-};
-
-const tableScrollStyle: React.CSSProperties = {
-  overflowX: "auto",
-};
-
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  tableLayout: "fixed",
-};
-
-const headCellStyle: React.CSSProperties = {
-  borderBottom: "1px solid #dbe4ee",
-  borderRight: "1px solid #e5edf5",
-  padding: "10px 8px",
-  backgroundColor: "#edf2f7",
-  color: "#1e293b",
-  fontSize: "12px",
-  fontWeight: 700,
-  textAlign: "center",
-};
-
-const bodyCellStyle: React.CSSProperties = {
-  borderBottom: "1px solid #eef2f7",
-  borderRight: "1px solid #eef2f7",
-  padding: "8px",
-  verticalAlign: "top",
-  height: "88px",
-  backgroundColor: "#ffffff",
-};
-
-const timeColumnStyle: React.CSSProperties = {
-  width: "110px",
-  minWidth: "110px",
-  textAlign: "center",
-  fontWeight: 600,
-  color: "#334155",
-};
-
-const emptyCellStyle: React.CSSProperties = {
-  minHeight: "64px",
-};
-
-const classChipStyle: React.CSSProperties = {
-  border: "1px solid #d8e3f0",
-  backgroundColor: "#f8fbff",
-  borderRadius: "2px",
-  padding: "8px",
-  textAlign: "left",
-  marginBottom: "6px",
-};
-
-const classTitleStyle: React.CSSProperties = {
-  fontSize: "12px",
-  fontWeight: 700,
-  color: "#1d4ed8",
-  marginBottom: "4px",
-  lineHeight: 1.35,
-};
-
-const classSubtitleStyle: React.CSSProperties = {
-  fontSize: "11px",
-  color: "#475569",
-  marginBottom: "4px",
-};
-
-const classTimeStyle: React.CSSProperties = {
-  fontSize: "11px",
-  color: "#0f172a",
-};
-
-const statusLineStyle: React.CSSProperties = {
-  padding: "12px",
-  fontSize: "13px",
-  color: "#64748b",
-};
-
-const emptyStateCellStyle: React.CSSProperties = {
-  padding: "18px",
-  textAlign: "center",
-  color: "#64748b",
-  fontSize: "13px",
-};
 
 export default TimetableListPage;

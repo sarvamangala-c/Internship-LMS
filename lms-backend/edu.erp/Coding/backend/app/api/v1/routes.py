@@ -19,7 +19,11 @@ router.include_router(material_router)
 # router = APIRouter(tags=["Student Assignment"])
 
 from .announcement import router as announcement_router
-from .manage_assignment import router as manage_assignment_router
+try:
+    from .manage_assignment import router as manage_assignment_router
+except ImportError as e:
+    print(f"Error importing manage_assignment: {e}")
+    manage_assignment_router = None
 from .manage_quiz import router as manage_quiz_router
 from app.access_control.api.curriculum import router as curriculum_router
 from app.access_control.api.timetable import router as timetable_router
@@ -427,11 +431,14 @@ router.include_router(
     prefix="/announcements",
     tags=["Announcements"]
 )
-router.include_router(
-    manage_assignment_router,
-    prefix="/manage-assignment",
-    tags=["Manage Assignment"]
-)
+if manage_assignment_router:
+    router.include_router(
+        manage_assignment_router,
+        prefix="/manage-assignment",
+        tags=["Manage Assignment"]
+    )
+else:
+    print("manage_assignment_router is None, skipping include")
 router.include_router(
     manage_quiz_router,
     prefix="/manage-quiz",

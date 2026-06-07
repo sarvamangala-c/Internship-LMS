@@ -12,6 +12,8 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "react-toastify";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   exportConsolidatedStudentMarks,
   fetchConsolidatedStudentMarksGraph,
@@ -33,7 +35,11 @@ import {
   MarksSelectOption,
   MarksTermOption,
 } from "../../../types/ems/consolidatedStudentMarksReport";
-import { transformConsolidatedStudentMarks } from "../../../utils/transformConsolidatedStudentMarks";
+import { 
+  calculateGraphStats,
+  transformConsolidatedStudentMarks 
+} from "../../../utils/transformConsolidatedStudentMarks";
+import "./ConsolidatedStudentMarksReport.css";
 
 type ActiveTab = "report" | "graph";
 
@@ -141,16 +147,19 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
   const tableModel = useMemo(() => transformConsolidatedStudentMarks(reportData), [reportData]);
 
   const graphChartData = useMemo(
-    () =>
-      (graphData?.courses ?? []).map((course) => ({
+    () => {
+      // Use local stats calculated from the table model to ensure mock data is included
+      const localStats = calculateGraphStats(tableModel);
+      return (localStats?.courses ?? []).map((course: any) => ({
         name: course.course_code,
         average: course.average_marks,
         highest: course.highest_marks,
         lowest: course.lowest_marks,
         pass: course.pass_count ?? 0,
         fail: course.fail_count ?? 0,
-      })),
-    [graphData],
+      }));
+    },
+    [tableModel],
   );
 
   useEffect(() => {
@@ -339,10 +348,6 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
     if (!filters.academicBatchId) return "Curriculum is required.";
     if (!selectedTerm) return "Term is required.";
     if (!filters.sectionId) return "Section is required.";
-    if (filters.useCustomRange) {
-      if (!filters.fromDate || !filters.toDate) return "Select both From Date and To Date for custom range.";
-      if (filters.fromDate > filters.toDate) return "From Date cannot be later than To Date.";
-    }
     return "";
   };
 
@@ -378,34 +383,84 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
   };
 
   const handleExport = async () => {
-    const payload = buildRequestPayload();
-    if (!payload) {
-      const message = "Select Department, Curriculum, Term, and Section before exporting.";
-      setErrorMessage(message);
-      toast.error(message);
+    if (!tableModel.rows.length) {
+      toast.info("No report data to export.");
       return;
     }
 
-    setLoading((prev) => ({ ...prev, export: true }));
-    try {
-      const result = await exportConsolidatedStudentMarks({
-        ...payload,
-        format: "excel",
+    const doc = new jsPDF("l", "mm", "a4");
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Title
+    doc.setFontSize(18);
+    doc.text("Consolidated Student Marks Report", pageWidth / 2, 15, { align: "center" });
+
+    // Header Meta
+    doc.setFontSize(10);
+    const dateStr = new Date().toLocaleDateString();
+    doc.text(`Generated on: ${dateStr}`, pageWidth - 15, 10, { align: "right" });
+
+    // Table Data Preparation
+    const tableHeaders = [
+      "Sl. No",
+      "USN",
+      "Student Name",
+      ...tableModel.headers.map(h => h.courseTitle),
+      "Grand Total"
+    ];
+
+    const tableRows = tableModel.rows.map(row => {
+      const courseMarks = tableModel.headers.map(h => {
+        const marks = h.componentKeys.map(k => row.componentMarks[k] || "0");
+        return marks.join(" | ");
       });
+      return [
+        row.slNo,
+        row.studentUsn,
+        row.studentName,
+        ...courseMarks,
+        row.grandTotal
+      ];
+    });
 
-      if (!result.export_ready) {
-        toast.info(result.message || "Export is not ready yet.");
-        return;
-      }
+    autoTable(doc, {
+      startY: 25,
+      head: [tableHeaders],
+      body: tableRows,
+      theme: "grid",
+      headStyles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontSize: 8 },
+      bodyStyles: { fontSize: 8 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      margin: { top: 25 },
+    });
 
-      toast.success("Export is ready.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to export report";
-      setErrorMessage(message);
-      toast.error(message);
-    } finally {
-      setLoading((prev) => ({ ...prev, export: false }));
-    }
+    const summaryHeaders = ["Course Code", "Course Title", "Average", "Highest", "Lowest", "Pass", "Fail"];
+    const localStats = calculateGraphStats(tableModel);
+    const summaryRows = localStats.courses.map((course: any) => [
+      course.course_code || "",
+      course.course_title || "",
+      (course.average_marks || 0).toFixed(2),
+      course.highest_marks || 0,
+      course.lowest_marks || 0,
+      course.pass_count || 0,
+      course.fail_count || 0
+    ]);
+
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.text("Course Performance Summary (Graph Data)", pageWidth / 2, 15, { align: "center" });
+
+    autoTable(doc, {
+      startY: 25,
+      head: [summaryHeaders],
+      body: summaryRows,
+      theme: "striped",
+      headStyles: { fillColor: [52, 152, 219], textColor: [255, 255, 255] },
+      margin: { top: 25 },
+    });
+
+    doc.save("Consolidated_Student_Marks_Report.pdf");
+    toast.success("PDF Downloaded successfully!");
   };
 
   const resolveSummaryValue = (
@@ -414,7 +469,7 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
   ) => resolvedValue ?? fallbackValue ?? "-";
 
   const renderEmptyCourseCell = (title?: string) => (
-    <span style={styles.emptyCell} title={title}>
+    <span className="empty-cell" title={title}>
       {" "}
     </span>
   );
@@ -435,26 +490,26 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
       resolved.selected_course_ids.length > 0 ? resolved.selected_course_ids.length : filters.selectedCourseIds.length;
 
     return (
-      <div style={styles.summaryStrip}>
-        <div style={styles.summaryItem}>
-          <span style={styles.summaryLabel}>Curriculum</span>
-          <span style={styles.summaryValue}>{curriculumLabel}</span>
+      <div className="summary-strip">
+        <div className="summary-item">
+          <span className="summary-label">Curriculum</span>
+          <span className="summary-value">{curriculumLabel}</span>
         </div>
-        <div style={styles.summaryItem}>
-          <span style={styles.summaryLabel}>Term</span>
-          <span style={styles.summaryValue}>{termLabel}</span>
+        <div className="summary-item">
+          <span className="summary-label">Term</span>
+          <span className="summary-value">{termLabel}</span>
         </div>
-        <div style={styles.summaryItem}>
-          <span style={styles.summaryLabel}>Section</span>
-          <span style={styles.summaryValue}>{sectionLabel}</span>
+        <div className="summary-item">
+          <span className="summary-label">Section</span>
+          <span className="summary-value">{sectionLabel}</span>
         </div>
-        <div style={styles.summaryItem}>
-          <span style={styles.summaryLabel}>Selected Courses</span>
-          <span style={styles.summaryValue}>{selectedCourseCount}</span>
+        <div className="summary-item">
+          <span className="summary-label">Selected Courses</span>
+          <span className="summary-value">{selectedCourseCount}</span>
         </div>
-        <div style={styles.summaryItem}>
-          <span style={styles.summaryLabel}>Include Total</span>
-          <span style={styles.summaryValue}>{resolved.include_total_marks ? "Yes" : "No"}</span>
+        <div className="summary-item">
+          <span className="summary-label">Include Total</span>
+          <span className="summary-value">{resolved.include_total_marks ? "Yes" : "No"}</span>
         </div>
       </div>
     );
@@ -462,12 +517,12 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
 
   const renderTable = () => {
     if (loading.report) {
-      return <div style={styles.stateBox}>Loading consolidated student marks...</div>;
+      return <div className="state-box">Loading consolidated student marks...</div>;
     }
 
     if (!reportData || tableModel.rows.length === 0) {
       return (
-        <div style={styles.stateBox}>
+        <div className="state-box">
           Select the required filters and generate the report to view consolidated marks.
         </div>
       );
@@ -476,25 +531,25 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
     const includeTotal = reportData.filters.include_total_marks;
 
     return (
-      <div style={styles.tableScroll}>
-        <table style={styles.table}>
+      <div className="table-scroll">
+        <table className="table">
           <thead>
             <tr>
-              <th style={{ ...styles.th, ...styles.lockedHead }} rowSpan={2}>Sl. No</th>
-              <th style={{ ...styles.th, ...styles.lockedHeadWide }} rowSpan={2}>USN</th>
-              <th style={{ ...styles.th, ...styles.lockedHeadName }} rowSpan={2}>Student Name</th>
+              <th className="locked" rowSpan={2}>Sl. No</th>
+              <th className="locked" rowSpan={2}>USN</th>
+              <th className="locked" rowSpan={2}>Student Name</th>
               {tableModel.headers.map((header) => (
                 <th
                   key={`group-${header.courseId}`}
-                  style={styles.courseGroupHead}
+                  className="course-group-head"
                   colSpan={Math.max(header.componentKeys.length, 1)}
                 >
-                  <div style={styles.courseCode}>{header.courseCode}</div>
-                  <div style={styles.courseTitle}>{header.courseTitle}</div>
+                  <div className="course-code">{header.courseCode}</div>
+                  <div className="course-title">{header.courseTitle}</div>
                 </th>
               ))}
               {includeTotal && (
-                <th style={styles.totalHead} rowSpan={2}>
+                <th className="total-head" rowSpan={2}>
                   Total
                 </th>
               )}
@@ -504,12 +559,12 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
                 <React.Fragment key={`sub-${header.courseId}`}>
                   {header.componentKeys.length > 0 ? (
                     header.componentKeys.map((componentKey) => (
-                      <th key={componentKey} style={styles.subHead}>
+                      <th key={componentKey}>
                         {componentKey.split("::")[1]}
                       </th>
                     ))
                   ) : (
-                    <th style={styles.subHead} title="No components configured for this course">
+                    <th title="No components configured for this course">
                       &nbsp;
                     </th>
                   )}
@@ -520,28 +575,25 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
           <tbody>
             {tableModel.rows.map((row) => (
               <tr key={row.key}>
-                <td style={styles.tdLocked}>{row.slNo}</td>
-                <td style={styles.tdLockedWide}>{row.studentUsn}</td>
-                <td style={styles.tdLockedName}>
-                  <div style={styles.studentNameWrap}>
+                <td className="locked">{row.slNo}</td>
+                <td className="locked">{row.studentUsn}</td>
+                <td className="locked">
+                  <div className="student-name-wrap">
                     <span>{row.studentName}</span>
-                    {row.studentIdentityStatus === "fallback" ? (
-                      <span style={styles.identityFallbackBadge}>Identity fallback</span>
-                    ) : null}
                   </div>
                 </td>
                 {tableModel.headers.map((header) => (
                   <React.Fragment key={`row-${row.key}-${header.courseId}`}>
                     {header.componentKeys.length > 0 ? (
                       header.componentKeys.map((componentKey) => (
-                        <td key={`${row.key}-${componentKey}`} style={styles.td}>
+                        <td key={`${row.key}-${componentKey}`}>
                           {row.courseDataAvailability[header.courseId]
                             ? row.componentMarks[componentKey] ?? "-"
                             : renderEmptyCourseCell("Marks data is not available for this course")}
                         </td>
                       ))
                     ) : (
-                      <td style={styles.td}>
+                      <td>
                         {row.courseDataAvailability[header.courseId]
                           ? renderEmptyCourseCell("No components configured for this course")
                           : renderEmptyCourseCell("Marks data is not available for this course")}
@@ -549,7 +601,7 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
                     )}
                   </React.Fragment>
                 ))}
-                {includeTotal && <td style={styles.tdGrandTotal}>{row.grandTotal}</td>}
+                {includeTotal && <td className="grand-total">{row.grandTotal}</td>}
               </tr>
             ))}
           </tbody>
@@ -559,37 +611,30 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
   };
 
   const renderGraph = () => {
-    if (!lastSubmittedPayload) {
+    const localStats = calculateGraphStats(tableModel);
+    if (!lastSubmittedPayload || !localStats?.courses?.length) {
       return (
-        <div style={styles.stateBox}>
+        <div className="state-box">
           Generate the report first to load the consolidated marks graph.
         </div>
       );
     }
 
-    if (loading.graph) {
-      return <div style={styles.stateBox}>Loading graph...</div>;
-    }
-
-    if (!graphData || graphChartData.length === 0) {
-      return <div style={styles.stateBox}>No graph data available for the selected filters.</div>;
-    }
-
     return (
-      <div style={styles.graphCard}>
-        <div style={styles.graphSummaryGrid}>
-          {graphData.courses.map((course) => (
-            <div key={course.course_id} style={styles.metricTile}>
-              <div style={styles.metricLabel}>{course.course_code}</div>
-              <div style={styles.metricValue}>{course.average_marks.toFixed(2)}</div>
-              <div style={styles.metricSubtext}>
+      <div className="graph-card">
+        <div className="graph-summary-grid">
+          {localStats.courses.map((course: any) => (
+            <div key={course.course_id} className="metric-tile">
+              <div className="metric-label">{course.course_code}</div>
+              <div className="metric-value">{course.average_marks.toFixed(2)}</div>
+              <div className="metric-subtext">
                 High {course.highest_marks} | Low {course.lowest_marks}
               </div>
             </div>
           ))}
         </div>
 
-        <div style={styles.chartWrap}>
+        <div className="chart-wrap">
           <ResponsiveContainer width="100%" height={360}>
             <BarChart data={graphChartData} margin={{ top: 16, right: 24, left: 0, bottom: 16 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -598,7 +643,7 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
               <Tooltip />
               <Legend />
               <Bar dataKey="average" name="Average Marks" radius={[4, 4, 0, 0]}>
-                {graphChartData.map((_, index) => (
+                {graphChartData.map((_: any, index: number) => (
                   <Cell key={`avg-${index}`} fill={chartColors[index % chartColors.length]} />
                 ))}
               </Bar>
@@ -612,19 +657,38 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.titleBar}>
-        <span style={styles.titleText}>Consolidated Student Marks Report</span>
+    <div className="consolidated-marks-container">
+      {/* Dynamic Mesh Background Layer */}
+      <div className="mesh-background">
+        <div className="mesh-circle-1" />
+        <div className="mesh-circle-2" />
+        <div className="mesh-circle-3" />
       </div>
 
-      <div style={styles.card}>
-        <div style={styles.filterGrid}>
-          <div style={styles.filterItem}>
-            <label style={styles.label}>
-              Department <span style={styles.required}>*</span>
+      {/* Header */}
+      <div className="consolidated-marks-header no-print">
+        <div className="consolidated-marks-breadcrumb">
+          <span>Home</span>
+          <span>/</span>
+          <span>LMS</span>
+          <span>/</span>
+          <span>Reports</span>
+          <span>/</span>
+          <span>Consolidated Marks</span>
+        </div>
+        <div className="consolidated-marks-title">Consolidated Student Marks Report</div>
+      </div>
+
+      {/* Content */}
+      <div className="consolidated-marks-content no-print">
+        {/* Filter Section */}
+        <div className="filter-section">
+          <div className="filter-group">
+            <label className="filter-label">
+              Department <span className="filter-required">*</span>
             </label>
             <select
-              style={styles.input}
+              className="filter-select"
               value={filters.departmentId ?? ""}
               onChange={(event) =>
                 setFilters((prev) => ({
@@ -643,12 +707,12 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
             </select>
           </div>
 
-          <div style={styles.filterItem}>
-            <label style={styles.label}>
-              Curriculum <span style={styles.required}>*</span>
+          <div className="filter-group">
+            <label className="filter-label">
+              Curriculum <span className="filter-required">*</span>
             </label>
             <select
-              style={styles.input}
+              className="filter-select"
               value={filters.academicBatchId ?? ""}
               onChange={(event) =>
                 setFilters((prev) => ({
@@ -667,12 +731,12 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
             </select>
           </div>
 
-          <div style={styles.filterItem}>
-            <label style={styles.label}>
-              Term <span style={styles.required}>*</span>
+          <div className="filter-group">
+            <label className="filter-label">
+              Term <span className="filter-required">*</span>
             </label>
             <select
-              style={styles.input}
+              className="filter-select"
               value={filters.crclmTermId ?? ""}
               onChange={(event) =>
                 setFilters((prev) => ({
@@ -691,12 +755,12 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
             </select>
           </div>
 
-          <div style={styles.filterItem}>
-            <label style={styles.label}>
-              Section <span style={styles.required}>*</span>
+          <div className="filter-group">
+            <label className="filter-label">
+              Section <span className="filter-required">*</span>
             </label>
             <select
-              style={styles.input}
+              className="filter-select"
               value={filters.sectionId ?? ""}
               onChange={(event) =>
                 setFilters((prev) => ({
@@ -715,8 +779,8 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
             </select>
           </div>
 
-          <div style={{ ...styles.filterItem, gridColumn: "span 2" }}>
-            <label style={styles.label}>Course</label>
+          <div className="filter-group" style={{ gridColumn: "span 2" }}>
+            <label className="filter-label">Course</label>
             <Select
               isMulti
               styles={selectStyles}
@@ -735,7 +799,7 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
               placeholder={loading.courses ? "Loading courses..." : "All selected"}
               closeMenuOnSelect={false}
             />
-            <div style={styles.inlineHint}>
+            <div className="inline-hint">
               {courseOptions.length > 0 && filters.selectedCourseIds.length === courseOptions.length
                 ? "All courses selected"
                 : `${filters.selectedCourseIds.length || 0} course(s) selected`}
@@ -743,8 +807,9 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
           </div>
         </div>
 
-        <div style={styles.actionsRow}>
-          <label style={styles.checkboxLabel}>
+        {/* Actions Row */}
+        <div className="actions-row">
+          <label className="checkbox-label">
             <input
               type="checkbox"
               checked={filters.includeTotalMarks}
@@ -760,22 +825,7 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
 
           <button
             type="button"
-            style={styles.secondaryButton}
-            onClick={() =>
-              setFilters((prev) => ({
-                ...prev,
-                useCustomRange: !prev.useCustomRange,
-                fromDate: !prev.useCustomRange ? prev.fromDate : "",
-                toDate: !prev.useCustomRange ? prev.toDate : "",
-              }))
-            }
-          >
-            Custom Range
-          </button>
-
-          <button
-            type="button"
-            style={styles.exportButton}
+            className="action-button action-button-secondary"
             onClick={handleExport}
             disabled={loading.export || !filters.academicBatchId || !filters.crclmTermId || !filters.sectionId}
           >
@@ -784,7 +834,7 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
 
           <button
             type="button"
-            style={styles.generateButton}
+            className="action-button action-button-primary"
             onClick={handleGenerate}
             disabled={loading.report}
           >
@@ -792,54 +842,22 @@ const ConsolidatedStudentMarksReport: React.FC = () => {
           </button>
         </div>
 
-        {filters.useCustomRange && (
-          <div style={styles.rangeRow}>
-            <div style={styles.rangeField}>
-              <label style={styles.label}>From Date</label>
-              <input
-                type="date"
-                style={styles.input}
-                value={filters.fromDate}
-                onChange={(event) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    fromDate: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div style={styles.rangeField}>
-              <label style={styles.label}>To Date</label>
-              <input
-                type="date"
-                style={styles.input}
-                value={filters.toDate}
-                onChange={(event) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    toDate: event.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-        )}
-
-        {errorMessage ? <div style={styles.errorBox}>{errorMessage}</div> : null}
+        {errorMessage ? <div className="error-box">{errorMessage}</div> : null}
       </div>
 
-      <div style={styles.tabCard}>
-        <div style={styles.tabRow}>
+      {/* Tab Card */}
+      <div className="tab-card">
+        <div className="tab-row no-print">
           <button
             type="button"
-            style={activeTab === "report" ? styles.activeTab : styles.tab}
+            className={`tab-button ${activeTab === "report" ? "active" : ""}`}
             onClick={() => setActiveTab("report")}
           >
             Consolidated Student Marks Report
           </button>
           <button
             type="button"
-            style={activeTab === "graph" ? styles.activeTab : styles.tab}
+            className={`tab-button ${activeTab === "graph" ? "active" : ""}`}
             onClick={() => setActiveTab("graph")}
           >
             Consolidated Student Marks Graph

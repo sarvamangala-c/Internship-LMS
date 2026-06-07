@@ -1,5 +1,5 @@
 from urllib import request
-print("🔥 Topic Router Loaded")
+print("Topic Router Loaded")
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Body

@@ -17,6 +17,26 @@ export interface AttendanceRecord {
   markedAt: string;
 }
 
+export type AttendanceSaveStatus = AttendanceRecord["status"] | "not marked";
+
+export interface SaveAttendanceRecord {
+  studentId: string;
+  status: AttendanceSaveStatus;
+  remark?: string;
+  notes?: string;
+}
+
+export interface SaveAttendancePayload {
+  courseId: string;
+  date: string;
+  records: SaveAttendanceRecord[];
+  state: "draft" | "enabled" | "finalized";
+}
+
+export interface ImportAttendancePayload extends Omit<SaveAttendancePayload, "state"> {
+  state?: SaveAttendancePayload["state"];
+}
+
 export interface AttendanceSummary {
   courseId?: string;
   date: string;
@@ -64,6 +84,30 @@ const getMockAttendance = (): AttendanceRecord[] => [
     markedAt: "2024-03-15T09:05:00Z",
   },
 ];
+
+export interface SyncLmsAttendanceMapRecord {
+  student_usn: string;
+  present?: boolean;
+  a_type_id?: number;
+  remarks?: string;
+}
+
+export interface SyncLmsAttendanceMapPayload {
+  academic_batch_id: number;
+  semester_id: number;
+  crs_id: number;
+  section_id: number;
+  attendance_date: string;
+  created_by?: number;
+  a_type_id?: number;
+  tt_detail_id?: number;
+  attendance_class_count?: number;
+  manage_status?: number;
+  /** When set, must match the same class keys; keeps one session when reloading. */
+  attendance_id?: number;
+  /** Updates `a_type_id` (1 = Present, 0 = Absent) and `attendance_status` after rows exist. */
+  records?: SyncLmsAttendanceMapRecord[];
+}
 
 export const attendanceApi = {
   // Mark attendance for multiple students
@@ -181,47 +225,59 @@ export const attendanceApi = {
 
   getAttendanceCurriculums: async () => {
     try {
+      console.log("[AttendanceApi] Fetching curriculums");
       const response = await axiosInstance.get("/api/v1/timetable/curriculums");
+      console.log("[AttendanceApi] Curriculums response:", response.data);
       return {
         success: true,
         data: response.data?.data ?? response.data ?? [],
       };
     } catch (error: any) {
-      console.error("Error fetching curriculums:", error);
+      console.error("[AttendanceApi] Error fetching curriculums:", error);
       return { success: false, data: [] as any[] };
     }
   },
 
   getAttendanceTerms: async (curriculumId: string) => {
     try {
+      if (!curriculumId) {
+        console.warn("[AttendanceApi] curriculumId is empty");
+        return { success: false, data: [] as any[] };
+      }
+      console.log("[AttendanceApi] Fetching terms for curriculum:", curriculumId);
       const response = await axiosInstance.get(
         `/api/v1/timetable/curriculums/${curriculumId}/terms`,
       );
+      console.log("[AttendanceApi] Terms response:", response.data);
       return {
         success: true,
         data: response.data?.data ?? response.data ?? [],
       };
     } catch (error: any) {
-      console.error("Error fetching terms:", error);
+      console.error("[AttendanceApi] Error fetching terms:", error);
       return { success: false, data: [] as any[] };
     }
   },
 
   getAttendanceCourses: async (payload: {
     academic_batch_id: number;
-    crclm_term_id: number | string;
+    semester?: number;
+    crclm_term_id?: number | string;
+    course_type_id?: number;
   }) => {
     try {
+      console.log("[AttendanceApi] Fetching courses with payload:", payload);
       const response = await axiosInstance.post(
         "/api/v1/comman_function/courses",
         payload,
       );
+      console.log("[AttendanceApi] Courses response:", response.data);
       return {
         success: true,
         data: response.data?.data ?? response.data ?? [],
       };
     } catch (error: any) {
-      console.error("Error fetching courses:", error);
+      console.error("[AttendanceApi] Error fetching courses:", error);
       return { success: false, data: [] as any[] };
     }
   },
@@ -232,23 +288,46 @@ export const attendanceApi = {
     crclm_term_id?: number | string;
   }) => {
     try {
+      console.log("[AttendanceApi] Fetching sections with payload:", payload);
       const response = await axiosInstance.post(
         "/api/v1/comman_function/batch-sections",
         payload,
       );
+      console.log("[AttendanceApi] Sections response:", response.data);
       return {
         success: true,
-        data: response.data?.sections ?? response.data ?? [],
+        data: response.data?.sections ?? response.data?.data ?? response.data ?? [],
       };
     } catch (error: any) {
-      console.error("Error fetching sections:", error);
+      console.error("[AttendanceApi] Error fetching sections:", error);
       return { success: false, data: [] as any[] };
+    }
+  },
+
+  /** Ensures `lms_manage_attendance` + one `lms_map_student_attendance` row per enrolled student for that class date. */
+  syncLmsAttendanceMap: async (payload: SyncLmsAttendanceMapPayload) => {
+    try {
+      const response = await axiosInstance.post(
+        "/api/v1/access-control/attendance/sync-lms-map",
+        payload,
+      );
+      return {
+        success: true,
+        data: response.data?.data ?? response.data,
+      };
+    } catch (error: any) {
+      console.error("[AttendanceApi] syncLmsAttendanceMap failed:", error);
+      return { success: false, data: null as any };
     }
   },
 
   getAttendanceStudents: async (payload: {
     academic_batch_id: number;
     section: string;
+    semester_id?: number;
+    /** When set, students are loaded from course registration (iems_student_courses), not only iems_students.section. */
+    crs_code?: string;
+    crs_id?: number;
   }) => {
     try {
       const response = await axiosInstance.get(
@@ -541,12 +620,7 @@ export const attendanceApi = {
   },
 
   // Save attendance with state (draft/enabled/finalized)
-  saveAttendance: async (attendanceData: {
-    courseId: string;
-    date: string;
-    records: any[];
-    state: "draft" | "enabled" | "finalized";
-  }) => {
+  saveAttendance: async (attendanceData: SaveAttendancePayload) => {
     try {
       const response = await axiosInstance.post(
         "/api/v1/attendance/save",
@@ -610,6 +684,68 @@ export const attendanceApi = {
       console.error("Error exporting attendance:", error);
       toast.error("Failed to export attendance");
       return { success: false, message: "Export failed" };
+    }
+  },
+
+  // Backward-compatible wrapper for getStudentsForCourse
+  getStudentsForCourse: async (courseId: string, section?: string) => {
+    try {
+      const response = await axiosInstance.get("/api/v1/comman_function/students", {
+        params: {
+          course_id: courseId,
+          section: section || "",
+        },
+      });
+      return {
+        success: true,
+        data: response.data?.data ?? response.data ?? [],
+      };
+    } catch (error: any) {
+      console.error("Error fetching students for course:", error);
+      return { success: false, data: [] as any[] };
+    }
+  },
+
+  // Backward-compatible wrapper for importAttendance
+  importAttendance: async (
+    attendanceData: ImportAttendancePayload | File | FormData,
+  ) => {
+    try {
+      if (attendanceData instanceof File || attendanceData instanceof FormData) {
+        const formData =
+          attendanceData instanceof FormData
+            ? attendanceData
+            : (() => {
+                const data = new FormData();
+                data.append("file", attendanceData);
+                return data;
+              })();
+
+        const response = await axiosInstance.post(
+          "/api/v1/attendance/import",
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          },
+        );
+        toast.success("Attendance imported successfully!");
+        return { success: true, data: response.data };
+      }
+
+      const response = await axiosInstance.post(
+        "/api/v1/attendance/save",
+        {
+          ...attendanceData,
+          state: attendanceData.state || "draft",
+        },
+      );
+      toast.success("Attendance imported successfully!");
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      console.error("Error importing attendance:", error);
+      return { success: false, data: [] as any[] };
     }
   },
 };

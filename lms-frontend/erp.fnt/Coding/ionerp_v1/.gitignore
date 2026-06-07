@@ -20,3 +20,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+build_output_log.txt
+buildlog.txt
+npm_build_full_log.txt
+npm_build_test_log.txt

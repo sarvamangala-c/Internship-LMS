@@ -147,8 +147,11 @@ def get_assignment_topics(academic_batch_id: int, semester_id: int, crs_id: int,
 # Fetches bloom levels available for assignment mapping.
 @router.get("/meta/bloom-levels")
 def get_bloom_levels(db: Session = Depends(get_db)):
-    rows = db.execute(text("SELECT bloom_id, bloom_name, bloom_code FROM cudos_bloom_level ORDER BY bloom_id ASC")).mappings().all()
-    return returnSuccess(rows)
+    try:
+        rows = db.execute(text("SELECT bloom_id, bloom_name, bloom_code FROM cudos_bloom_level ORDER BY bloom_id ASC")).mappings().all()
+        return returnSuccess(rows)
+    except Exception as e:
+        return returnException(f"Failed to fetch bloom levels: {str(e)}")
 
 
 # Fetches CLO list for the selected course to support assignment mapping.

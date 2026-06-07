@@ -885,7 +885,7 @@ class IEMSCustomTimeTable(Base):
 class IEMSDailyAttendance(Base):
     __tablename__ = 'iems_daily_attendance'
 
-    attendance_id = Column(Integer, primary_key=True, autoincrement=False)  # UNSIGNED
+    attendance_id = Column(Integer, primary_key=True, autoincrement=True)  # UNSIGNED
     result_year = Column(Date, nullable=True)
     crs_code = Column(String(25), nullable=True)
     student_id = Column(Integer, nullable=True)  # mediumint(8)
