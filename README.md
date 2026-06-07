@@ -1,4 +1,4 @@
-# LMS 
+# Design and Development of course learning and attendance Management System
 
 ## Features
 ### EMS: Receive Announcement
